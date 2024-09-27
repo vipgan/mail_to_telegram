@@ -1,7 +1,6 @@
 name: Email to Telegram
 
 on:
-  workflow_dispatch
   schedule:
     - cron: '0 * * * *'  # 每小时运行一次
 
