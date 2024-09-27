@@ -1,22 +1,21 @@
 name: Email to Telegram
 
 on:
-  workflow_dispatch:
   schedule:
+  workflow_dispatch:
     - cron: '0 * * * *'  # 每小时运行一次
 
 jobs:
-  login:
+  send_email:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout 仓库代码
-        uses: actions/checkout@v2
+      - name: Checkout repository
+        uses: actions/checkout@v3  # 使用最新版本 v3
 
-      - name: 设置 Python 环境
-        uses: actions/setup-python@v2
+      - name: Set up Python
+        uses: actions/setup-python@v4  # 使用最新版本 v4
         with:
-          python-version: '3.x'  # 设置你希望使用的 Python 版本，建议使用稳定版本
+          python-version: '3.9'
 
       - name: Install dependencies
         run: |
