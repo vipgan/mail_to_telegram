@@ -1,0 +1,25 @@
+name: Email to Telegram
+
+on:
+  schedule:
+    - cron: '0 * * * *'  # 每小时运行一次
+
+jobs:
+  send_email:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: |
+          pip install requests
+
+      - name: Run email script
+        run: |
+          python send_email_to_telegram.py
