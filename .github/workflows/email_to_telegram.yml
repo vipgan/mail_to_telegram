@@ -2,6 +2,7 @@ name: Email to Telegram
 
 on:
   schedule:
+    workflow_dispatch
     - cron: '0 * * * *'  # 每小时运行一次
 
 jobs:
