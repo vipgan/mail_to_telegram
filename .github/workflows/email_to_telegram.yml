@@ -1,8 +1,8 @@
 name: Email to Telegram
 
 on:
-  schedule:
   workflow_dispatch:
+  schedule:
     - cron: '0 * * * *'  # 每小时运行一次
 
 jobs:
@@ -10,10 +10,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3  # 使用最新版本 v3
+        uses: actions/checkout@v3  # 更新到 v3
 
       - name: Set up Python
-        uses: actions/setup-python@v4  # 使用最新版本 v4
+        uses: actions/setup-python@v4  # 更新到 v4
         with:
           python-version: '3.9'
 
