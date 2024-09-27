@@ -32,9 +32,9 @@ def fetch_emails():
     for email_id in email_ids:
         result, msg_data = mail.fetch(email_id, '(RFC822)')
         msg = email.message_from_bytes(msg_data[0][1])
-        subject = msg['subject']
+        subject = msg.get('subject')  # 使用 get 方法
 
-        if any(keyword in subject for keyword in KEYWORDS):
+        if subject and any(keyword in subject for keyword in KEYWORDS):  # 检查主题是否为空
             send_message_to_telegram(f'新邮件: {subject}')
 
     mail.logout()
