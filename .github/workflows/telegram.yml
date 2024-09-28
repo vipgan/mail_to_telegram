@@ -1,41 +1,42 @@
-name: Email to Telegram
+name: Send QQ Emails to Telegram
 
 on:
   schedule:
-    - cron: '0 9 * * *'  # 每天上午9点运行
+    - cron: '0 9 * * *'  # 每天上午9点
   push:
     branches:
-     - main  # 在主分支代码更新时触发
+      - main  # 在主分支代码更新时触发
+
 jobs:
-  email_to_telegram:
+  send_email:
     runs-on: ubuntu-latest
-
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v2
+      - name: Checkout code
+        uses: actions/checkout@v2
 
-    - name: Set up Python
-      uses: actions/setup-python@v2
-      with:
-        python-version: '3.x'
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.8'
 
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install requests
+      - name: Install dependencies
+        run: |
+          pip install requests
+          pip install imaplib2
 
-    - name: Run Python script
-      run: python send_email_to_telegram.py
+      - name: Run the script
+        env:
+          EMAIL_USER: ${{ secrets.EMAIL_USER }}
+          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+          TELEGRAM_API_KEY: ${{ secrets.TELEGRAM_API_KEY }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python send_email_to_telegram.py
 
-    - name: Commit changes
-      run: |
-        git config --global user.name "GitHub Actions"
-        git config --global user.email "actions@github.com"
-        git add sent_emails.json
-        git commit -m "Update sent_emails.json"
-        git push
-      env:
-        EMAIL_USER: ${{ secrets.EMAIL_USER }}
-        EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
-        TELEGRAM_API_KEY: ${{ secrets.TELEGRAM_API_KEY }}
-        TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      - name: Commit sent_emails.json
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+          git add sent_emails.json
+          git commit -m "Update sent_emails.json with new sent emails"
+          git push
+        continue-on-error: true  # 忽略当没有新变化时的错误
