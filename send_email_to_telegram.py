@@ -3,6 +3,7 @@ import email
 import requests
 import os
 import json
+import time  # 添加导入
 
 # 设置邮箱信息
 email_user = os.environ['EMAIL_USER']
@@ -28,11 +29,12 @@ def save_sent_emails(sent_emails):
     with open(sent_emails_file, 'w') as f:
         json.dump(sent_emails, f)
 
-# 发送消息到 Telegram
+# 发送消息到 Telegram，增加1秒延迟
 def send_message(text):
     try:
         requests.post(f'https://api.telegram.org/bot{TELEGRAM_API_KEY}/sendMessage',
                       data={'chat_id': TELEGRAM_CHAT_ID, 'text': text})
+        time.sleep(1)  # 增加1秒延迟
     except Exception as e:
         print(f"Error sending message to Telegram: {e}")
 
@@ -66,7 +68,7 @@ def get_email_body(msg):
 
 # 获取并处理邮件
 def fetch_emails():
-    keywords = ['账单', '信用卡','google','Azure', 'cloudflare', '移动']
+    keywords = ['账单', '信用卡', 'google', 'Azure', 'cloudflare', '移动']
     sent_emails = load_sent_emails()  # 加载已发送邮件记录
     
     try:
@@ -93,6 +95,10 @@ def fetch_emails():
 
             # 检查主题是否包含关键词
             if any(keyword in subject for keyword in keywords):
+                # 修改邮件内容格式，保留需要的行
+                body_lines = body.split('\n')
+                if len(body_lines) > 3:
+                    body = '\n'.join([body_lines[1], body_lines[2]] + body_lines[4:])  # 删除第一行和第四行
                 send_message(f'New Email:\nFrom: {sender}\nSubject: {subject}\nContent: {body}')
                 
                 # 记录发送的邮件
