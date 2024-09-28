@@ -3,7 +3,9 @@ name: Email to Telegram
 on:
   schedule:
     - cron: '0 9 * * *'  # 每天上午9点运行
-
+  push:
+    branches:
+     - main  # 在主分支代码更新时触发
 jobs:
   email_to_telegram:
     runs-on: ubuntu-latest
