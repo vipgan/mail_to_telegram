@@ -6,6 +6,7 @@ import json
 import logging
 from email.header import decode_header
 from concurrent.futures import ThreadPoolExecutor
+import time
 
 # 设置日志记录
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -34,15 +35,25 @@ def save_sent_emails(sent_emails):
     with open(sent_emails_file, 'w') as f:
         json.dump(sent_emails, f)
 
-# 发送消息到 Telegram
+# 发送消息到 Telegram，带长度限制和分批发送功能
 def send_message(text):
+    max_length = 4096
     try:
-        response = requests.post(f'https://api.telegram.org/bot{TELEGRAM_API_KEY}/sendMessage',
-                                 data={'chat_id': TELEGRAM_CHAT_ID, 'text': text})
-        if response.status_code == 200:
-            logging.info("Message sent to Telegram successfully.")
+        # 如果消息超出4096字符限制，分批发送
+        if len(text) > max_length:
+            for i in range(0, len(text), max_length):
+                response = requests.post(f'https://api.telegram.org/bot{TELEGRAM_API_KEY}/sendMessage',
+                                         data={'chat_id': TELEGRAM_CHAT_ID, 'text': text[i:i+max_length]})
+                time.sleep(1)  # 分批发送时添加延迟，避免触发 Telegram 限制
+                if response.status_code != 200:
+                    logging.error(f"Failed to send message. Status code: {response.status_code}")
         else:
-            logging.error(f"Failed to send message. Status code: {response.status_code}")
+            response = requests.post(f'https://api.telegram.org/bot{TELEGRAM_API_KEY}/sendMessage',
+                                     data={'chat_id': TELEGRAM_CHAT_ID, 'text': text})
+            if response.status_code == 200:
+                logging.info("Message sent to Telegram successfully.")
+            else:
+                logging.error(f"Failed to send message. Status code: {response.status_code}")
     except Exception as e:
         logging.error(f"Error sending message to Telegram: {e}")
 
