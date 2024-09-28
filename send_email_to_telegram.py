@@ -3,42 +3,32 @@ import email
 import requests
 import os
 
-# 获取环境变量
-TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
-TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
-QQ_EMAIL = os.getenv('QQ_EMAIL')
-QQ_EMAIL_API_KEY = os.getenv('QQ_EMAIL_API_KEY')  # 使用 API 密钥
+# 设置邮箱信息
+email_user = os.environ['EMAIL_USER']
+email_password = os.environ['EMAIL_PASSWORD']
+imap_server = "imap.qq.com"
 
-# 邮箱连接设置
-IMAP_SERVER = 'imap.qq.com'
-KEYWORDS = ['信用卡', '账单', '移动']
+# 设置 Telegram 信息
+TELEGRAM_API_KEY = os.environ['TELEGRAM_API_KEY']
+TELEGRAM_CHAT_ID = os.environ['TELEGRAM_CHAT_ID']
 
-def send_message_to_telegram(message):
-    url = f'https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage'
-    payload = {
-        'chat_id': TELEGRAM_CHAT_ID,
-        'text': message
-    }
-    requests.post(url, json=payload)
+def send_message(text):
+    requests.post(f'https://api.telegram.org/bot{TELEGRAM_API_KEY}/sendMessage',
+                  data={'chat_id': TELEGRAM_CHAT_ID, 'text': text})
 
 def fetch_emails():
-    print(f"QQ_EMAIL: {QQ_EMAIL}")
-    print(f"QQ_EMAIL_API_KEY: {QQ_EMAIL_API_KEY}")
-
-    mail = imaplib.IMAP4_SSL(IMAP_SERVER)
-    mail.login(QQ_EMAIL, QQ_EMAIL_API_KEY)  # 使用 API 密钥
+    mail = imaplib.IMAP4_SSL(imap_server)
+    mail.login(email_user, email_password)
     mail.select('inbox')
 
-    result, data = mail.search(None, 'ALL')
-    email_ids = data[0].split()
+    status, messages = mail.search(None, 'ALL')
+    email_ids = messages[0].split()
 
     for email_id in email_ids:
-        result, msg_data = mail.fetch(email_id, '(RFC822)')
-        msg = email.message_from_bytes(msg_data[0][1])
-        subject = msg.get('subject')
-
-        if subject and any(keyword in subject for keyword in KEYWORDS):
-            send_message_to_telegram(f'新邮件: {subject}')
+        _, msg = mail.fetch(email_id, '(RFC822)')
+        msg = email.message_from_bytes(msg[0][1])
+        subject = msg['subject']
+        send_message(f'New Email: {subject}')
 
     mail.logout()
 
