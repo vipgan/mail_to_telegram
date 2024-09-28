@@ -16,7 +16,16 @@ def send_message(text):
     requests.post(f'https://api.telegram.org/bot{TELEGRAM_API_KEY}/sendMessage',
                   data={'chat_id': TELEGRAM_CHAT_ID, 'text': text})
 
+def decode_header(header):
+    decoded_fragments = email.header.decode_header(header)
+    return ''.join(
+        str(fragment, encoding or 'utf-8') if isinstance(fragment, bytes) else fragment
+        for fragment, encoding in decoded_fragments
+    )
+
 def fetch_emails():
+    keywords = ['账单', '信用卡', '移动']
+    
     mail = imaplib.IMAP4_SSL(imap_server)
     mail.login(email_user, email_password)
     mail.select('inbox')
@@ -27,8 +36,14 @@ def fetch_emails():
     for email_id in email_ids:
         _, msg = mail.fetch(email_id, '(RFC822)')
         msg = email.message_from_bytes(msg[0][1])
-        subject = msg['subject']
-        send_message(f'New Email: {subject}')
+        
+        subject = decode_header(msg['subject'])
+        sender = msg['from']
+        body = msg.get_payload(decode=True).decode('utf-8', errors='ignore')
+
+        # 检查主题是否包含关键词
+        if any(keyword in subject for keyword in keywords):
+            send_message(f'New Email:\nFrom: {sender}\nSubject: {subject}\nContent: {body}')
 
     mail.logout()
 
