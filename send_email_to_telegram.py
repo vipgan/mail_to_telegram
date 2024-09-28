@@ -143,11 +143,18 @@ def fetch_emails():
             for email_id in email_ids:
                 executor.submit(process_email, mail, email_id, sent_emails, keywords, sender_filter)
 
+    except imaplib.IMAP4.error as e:
+        logging.error(f"IMAP error: {e}")
+        send_error_notification(f"IMAP error: {e}")
     except Exception as e:
         logging.error(f"Error fetching emails: {e}")
         send_error_notification(f"Error fetching emails: {e}")
     finally:
-        mail.logout()
+        try:
+            mail.logout()  # 尝试正常注销
+        except imaplib.IMAP4.abort as e:
+            logging.error(f"IMAP logout error: {e}")
+            send_error_notification(f"IMAP logout error: {e}")
         save_sent_emails(sent_emails)  # 保存已发送邮件记录
         logging.info("Emails fetched and sent_emails.json updated.")
 
