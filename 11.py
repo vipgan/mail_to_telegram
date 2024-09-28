@@ -46,15 +46,23 @@ def decode_header(header):
 
 # 获取邮件内容并解决乱码问题
 def get_email_body(msg):
+    body = ""
     if msg.is_multipart():
         for part in msg.walk():
             if part.get_content_type() == 'text/plain':
                 charset = part.get_content_charset()
-                return part.get_payload(decode=True).decode(charset or 'utf-8', errors='ignore')
+                if charset:
+                    body = part.get_payload(decode=True).decode(charset, errors='ignore')
+                else:
+                    body = part.get_payload(decode=True).decode('utf-8', errors='ignore')
+                break
     else:
         charset = msg.get_content_charset()
-        return msg.get_payload(decode=True).decode(charset or 'utf-8', errors='ignore')
-    return ""
+        if charset:
+            body = msg.get_payload(decode=True).decode(charset, errors='ignore')
+        else:
+            body = msg.get_payload(decode=True).decode('utf-8', errors='ignore')
+    return body
 
 # 获取并处理邮件
 def fetch_emails():
@@ -74,7 +82,7 @@ def fetch_emails():
             msg = email.message_from_bytes(msg_data[0][1])
             
             subject = decode_header(msg['subject'])
-            sender = msg['from']
+            sender = decode_header(msg['from'])
             
             # 检查邮件ID是否已经发送过
             if subject in sent_emails:

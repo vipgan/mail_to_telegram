@@ -3,6 +3,7 @@ import email
 import requests
 import os
 import json
+import re
 
 # 设置邮箱信息
 email_user = os.environ['EMAIL_USER']
@@ -31,8 +32,11 @@ def save_sent_emails(sent_emails):
 # 发送消息到 Telegram
 def send_message(text):
     try:
-        requests.post(f'https://api.telegram.org/bot{TELEGRAM_API_KEY}/sendMessage',
-                      data={'chat_id': TELEGRAM_CHAT_ID, 'text': text})
+        response = requests.post(
+            f'https://api.telegram.org/bot{TELEGRAM_API_KEY}/sendMessage',
+            data={'chat_id': TELEGRAM_CHAT_ID, 'text': text}
+        )
+        response.raise_for_status()  # 检查响应状态
     except Exception as e:
         print(f"Error sending message to Telegram: {e}")
 
@@ -66,8 +70,9 @@ def get_email_body(msg):
 
 # 获取并处理邮件
 def fetch_emails():
-    keywords = ['账单', '信用卡', '移动']
-    sent_emails = load_sent_emails()  # 加载已发送邮件记录
+    keywords = [re.compile(keyword, re.IGNORECASE) for keyword in ['账单', '信用卡', '移动']]
+    sent_emails = load_sent_emails()
+    messages_to_send = []  # 存储待发送的消息
     
     try:
         mail = imaplib.IMAP4_SSL(imap_server)
@@ -83,21 +88,25 @@ def fetch_emails():
             
             subject = decode_header(msg['subject'])
             sender = decode_header(msg['from'])
-            
+
             # 检查邮件ID是否已经发送过
-            if subject in sent_emails:
+            if any(email_id in sent_email['id'] for sent_email in sent_emails):
                 continue  # 如果邮件已经发送，跳过
 
             # 获取邮件内容
             body = get_email_body(msg)
 
             # 检查主题是否包含关键词
-            if any(keyword in subject for keyword in keywords):
-                send_message(f'New Email:\nFrom: {sender}\nSubject: {subject}\nContent: {body}')
+            if any(keyword.search(subject) for keyword in keywords):
+                messages_to_send.append(f'New Email:\nFrom: {sender}\nSubject: {subject}\nContent: {body}')
                 
                 # 记录发送的邮件
-                sent_emails.append(subject)
+                sent_emails.append({'subject': subject, 'id': email_id.decode()})
 
+        # 分批发送消息
+        if messages_to_send:
+            send_message("\n\n".join(messages_to_send))
+        
     except Exception as e:
         print(f"Error fetching emails: {e}")
     finally:
