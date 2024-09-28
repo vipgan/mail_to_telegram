@@ -66,7 +66,7 @@ def get_email_body(msg):
 
 # 获取并处理邮件
 def fetch_emails():
-    keywords = ['账单', '信用卡', '移动']
+    keywords = ['账单', '信用卡','google','Azure', 'cloudflare', '移动']
     sent_emails = load_sent_emails()  # 加载已发送邮件记录
     
     try:
