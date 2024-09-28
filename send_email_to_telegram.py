@@ -101,7 +101,7 @@ def fetch_emails():
         # 分批发送消息
         if messages_to_send:
             send_message("\n\n".join(messages_to_send))
-            time.sleep(2)  # 发送后延迟 2 秒
+            time.sleep(1)  # 发送后延迟 1 秒
             
     except Exception as e:
         print(f"Error fetching emails: {e}")
