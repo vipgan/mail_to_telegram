@@ -4,6 +4,7 @@ import requests
 import os
 import json
 import re
+import time  # 导入时间模块
 
 # 设置邮箱信息
 email_user = os.environ['EMAIL_USER']
@@ -34,7 +35,7 @@ def send_message(text):
     try:
         response = requests.post(
             f'https://api.telegram.org/bot{TELEGRAM_API_KEY}/sendMessage',
-            data={'chat_id': TELEGRAM_CHAT_ID, 'text': text}
+            data={'chat_id': TELEGRAM_CHAT_ID, 'text': text, 'parse_mode': 'HTML'}  # 使用 HTML 解析模式
         )
         response.raise_for_status()  # 检查响应状态
     except Exception as e:
@@ -54,23 +55,17 @@ def get_email_body(msg):
     if msg.is_multipart():
         for part in msg.walk():
             if part.get_content_type() == 'text/plain':
-                charset = part.get_content_charset()
-                if charset:
-                    body = part.get_payload(decode=True).decode(charset, errors='ignore')
-                else:
-                    body = part.get_payload(decode=True).decode('utf-8', errors='ignore')
+                charset = part.get_content_charset() or 'utf-8'
+                body = part.get_payload(decode=True).decode(charset, errors='ignore')
                 break
     else:
-        charset = msg.get_content_charset()
-        if charset:
-            body = msg.get_payload(decode=True).decode(charset, errors='ignore')
-        else:
-            body = msg.get_payload(decode=True).decode('utf-8', errors='ignore')
+        charset = msg.get_content_charset() or 'utf-8'
+        body = msg.get_payload(decode=True).decode(charset, errors='ignore')
     return body
 
 # 获取并处理邮件
-def fetch_emails():
-    keywords = [re.compile(keyword, re.IGNORECASE) for keyword in ['账单', '信用卡', '移动']]
+def fetch_emails(): 
+    keywords = [re.compile(keyword, re.IGNORECASE) for keyword in ['账单', '信用卡','google','Azure', 'cloudflare','移动']]
     sent_emails = load_sent_emails()
     messages_to_send = []  # 存储待发送的消息
     
@@ -106,7 +101,8 @@ def fetch_emails():
         # 分批发送消息
         if messages_to_send:
             send_message("\n\n".join(messages_to_send))
-        
+            time.sleep(2)  # 发送后延迟 2 秒
+            
     except Exception as e:
         print(f"Error fetching emails: {e}")
     finally:
