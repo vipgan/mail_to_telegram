@@ -4,7 +4,7 @@ import requests
 import os
 import json
 import time
-import re
+import markdown
 
 # 设置邮箱信息
 email_user = os.environ['EMAIL_USER']
@@ -30,12 +30,12 @@ def save_sent_emails(sent_emails):
     with open(sent_emails_file, 'w') as f:
         json.dump(sent_emails, f)
 
-# 发送消息到 Telegram，增加1秒延迟
+# 发送消息到 Telegram，增加2秒延迟
 def send_message(text):
     try:
-        time.sleep(1)  # 增加1秒延迟
+        time.sleep(1)  # 增加2秒延迟
         requests.post(f'https://api.telegram.org/bot{TELEGRAM_API_KEY}/sendMessage',
-                      data={'chat_id': TELEGRAM_CHAT_ID, 'text': text})
+                      data={'chat_id': TELEGRAM_CHAT_ID, 'text': text, 'parse_mode': 'MarkdownV2'})
     except Exception as e:
         print(f"Error sending message to Telegram: {e}")
 
@@ -46,14 +46,6 @@ def decode_header(header):
         str(fragment, encoding or 'utf-8') if isinstance(fragment, bytes) else fragment
         for fragment, encoding in decoded_fragments
     )
-
-# 清理邮件内容
-def clean_email_body(body):
-    # 去除 HTML 标签
-    body = re.sub(r'<.*?>', '', body)
-    # 去除多余空格
-    body = ' '.join(body.split())
-    return body
 
 # 获取邮件内容并解决乱码问题
 def get_email_body(msg):
@@ -73,7 +65,7 @@ def get_email_body(msg):
             body = msg.get_payload(decode=True).decode(charset, errors='ignore')
         else:
             body = msg.get_payload(decode=True).decode('utf-8', errors='ignore')
-    return clean_email_body(body)
+    return body
 
 # 增加过滤功能开关
 receive_filter_enabled = False   # True表示开启接收过滤，# False 表示关闭过滤
@@ -84,7 +76,7 @@ reject_keywords = ['拒收', '信用卡', '广告']
 
 # 获取并处理邮件
 def fetch_emails():
-    keywords = ['接收', '信用卡', 'google', 'Azure', 'cloudflare', 'Microsoft', '账户', '账单', 'Google', '帳戶', 'gmail', 'Cloud', '移动']
+    keywords = ['账单', '信用卡', 'google', 'Azure', 'cloudflare', 'Microsoft', '账户', '安全提示', 'Google', '帳戶', 'gmail', 'Cloud', '移动']
     sent_emails = load_sent_emails()
     
     try:
@@ -117,11 +109,13 @@ def fetch_emails():
 
             # 发送消息，使用 Markdown 格式
             message = f'''
-**发件人**: {sender}  
-**主题**: {subject}  
-**内容**:  
+*发件人*: {sender}  
+*主题*: {subject}  
+*内容*:  
 {body}
 '''
+            # 将消息转换为 Markdown 格式（如有需要）
+            message = markdown.markdown(message)
             send_message(message)
             
             # 记录发送的邮件
