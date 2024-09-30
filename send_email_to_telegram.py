@@ -76,15 +76,15 @@ def get_email_body(msg):
     return clean_email_body(body)
 
 # 增加过滤功能开关
-receive_filter_enabled = False    # True 表示开启接收过滤，# False 表示关闭过滤
+receive_filter_enabled = False   # True表示开启接收过滤，# False 表示关闭过滤
 reject_filter_enabled = False
 
 # 拒收关键词
-reject_keywords = ['垃圾邮件', 'google', '广告']
+reject_keywords = ['拒收', '信用卡', '广告']
 
 # 获取并处理邮件
 def fetch_emails():
-    keywords = ['账单', '信用卡', 'google', 'Azure', 'cloudflare', 'Microsoft', '账户', '安全提示', 'Google', '帳戶', 'gmail', 'Cloud', '移动']
+    keywords = ['接收', '信用卡', 'google', 'Azure', 'cloudflare', 'Microsoft', '账户', '账单', 'Google', '帳戶', 'gmail', 'Cloud', '移动']
     sent_emails = load_sent_emails()
     
     try:
@@ -115,15 +115,12 @@ def fetch_emails():
             if reject_filter_enabled and any(keyword in subject for keyword in reject_keywords):
                 continue
 
-            # 发送消息，使用普通文本
+            # 发送消息，使用 Markdown 格式
             message = f'''
----
 **发件人**: {sender}  
 **主题**: {subject}  
----
 **内容**:  
 {body}
----
 '''
             send_message(message)
             
