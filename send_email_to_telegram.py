@@ -4,8 +4,7 @@ import requests
 import os
 import json
 import time
-import re
-import markdown
+import markdown2
 
 # 设置邮箱信息
 email_user = os.environ['EMAIL_USER']
@@ -36,7 +35,7 @@ def send_message(text):
     try:
         time.sleep(1)  # 增加1秒延迟
         requests.post(f'https://api.telegram.org/bot{TELEGRAM_API_KEY}/sendMessage',
-                      data={'chat_id': TELEGRAM_CHAT_ID, 'text': text})
+                      data={'chat_id': TELEGRAM_CHAT_ID, 'text': text, 'parse_mode': 'MarkdownV2'})
     except Exception as e:
         print(f"Error sending message to Telegram: {e}")
 
@@ -47,14 +46,6 @@ def decode_header(header):
         str(fragment, encoding or 'utf-8') if isinstance(fragment, bytes) else fragment
         for fragment, encoding in decoded_fragments
     )
-
-# 清理邮件内容
-def clean_email_body(body):
-    # 去除 HTML 标签
-    body = re.sub(r'<.*?>', '', body)
-    # 去除多余空格
-    body = ' '.join(body.split())
-    return body
 
 # 获取邮件内容并解决乱码问题
 def get_email_body(msg):
@@ -77,7 +68,7 @@ def get_email_body(msg):
     return clean_email_body(body)
 
 # 增加过滤功能开关
-receive_filter_enabled = False   # True表示开启接收过滤，# False 表示关闭过滤
+receive_filter_enabled = False   # True表示开启接收过滤，False表示关闭过滤
 reject_filter_enabled = False
 
 # 拒收关键词
@@ -117,13 +108,13 @@ def fetch_emails():
                 continue
 
             # 发送消息，使用 Markdown 格式
-            message = f'''
-**发件人**: {sender}  
-**主题**: {subject}  
-**内容**:  
-{body}
-'''
-            send_message(message)
+            message = f"""
+            **发件人**: {sender}  
+            **主题**: {subject}  
+            **内容**:  
+            {body}
+            """
+            send_message(markdown2.markdown(message))
             
             # 记录发送的邮件
             sent_emails.append(subject)
