@@ -33,7 +33,7 @@ def save_sent_emails(sent_emails):
 # 发送消息到 Telegram，增加1秒延迟
 def send_message(text):
     try:
-        time.sleep(1)  # 增加2秒延迟
+        time.sleep(1)  # 增加1秒延迟
         requests.post(f'https://api.telegram.org/bot{TELEGRAM_API_KEY}/sendMessage',
                       data={'chat_id': TELEGRAM_CHAT_ID, 'text': text})
     except Exception as e:
@@ -80,7 +80,7 @@ receive_filter_enabled = False    # True 表示开启接收过滤，# False 表�
 reject_filter_enabled = False
 
 # 拒收关键词
-reject_keywords = ['垃圾邮件', '信用卡', '广告']
+reject_keywords = ['垃圾邮件', 'google', '广告']
 
 # 获取并处理邮件
 def fetch_emails():
@@ -116,7 +116,15 @@ def fetch_emails():
                 continue
 
             # 发送消息，使用普通文本
-            message = f'New Email:\nFrom: {sender}\nSubject: {subject}\nContent: {body}'
+            message = f'''
+---
+**发件人**: {sender}  
+**主题**: {subject}  
+---
+**内容**:  
+{body}
+---
+'''
             send_message(message)
             
             # 记录发送的邮件
