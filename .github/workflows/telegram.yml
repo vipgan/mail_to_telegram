@@ -41,4 +41,4 @@ jobs:
           git add sent_emails.json
           git commit -m "Update sent_emails.json with new sent emails" || echo "No changes to commit"
           git push
-        continue-on-error: true  # 忽略当没有新变化时的错误
+        continue-on-error: true  
