@@ -47,6 +47,13 @@ def decode_header(header):
         for fragment, encoding in decoded_fragments
     )
 
+# 转义 MarkdownV2 特殊字符
+def escape_markdown(text):
+    special_chars = ['_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!']
+    for char in special_chars:
+        text = text.replace(char, f'\\{char}')
+    return text
+
 # 清理邮件内容并转换为 Markdown 格式
 def clean_email_body(body):
     # 替换 HTML 标签为 Markdown 格式
@@ -94,9 +101,10 @@ def fetch_emails():
             _, msg_data = mail.fetch(email_id, '(RFC822)')
             msg = email.message_from_bytes(msg_data[0][1])
             
-            subject = decode_header(msg['subject'])
-            sender = decode_header(msg['from'])
-            body = get_email_body(msg)
+            subject = escape_markdown(decode_header(msg['subject']))
+            sender = escape_markdown(decode_header(msg['from']))
+            date = escape_markdown(msg['date'])
+            body = escape_markdown(get_email_body(msg))
 
             # 检查邮件ID是否已经发送过
             if subject in sent_emails:
@@ -106,6 +114,7 @@ def fetch_emails():
             message = f'''
 **发件人**: {sender}  
 **主题**: {subject}  
+**日期**: {date}  
 **内容**:  
 {body}
 '''
