@@ -5,6 +5,7 @@ import os
 import json
 import time
 import re
+import markdown
 
 # 设置邮箱信息
 email_user = os.environ['EMAIL_USER']
@@ -34,10 +35,8 @@ def save_sent_emails(sent_emails):
 def send_message(text):
     try:
         time.sleep(1)  # 增加1秒延迟
-        requests.post(
-            f'https://api.telegram.org/bot{TELEGRAM_API_KEY}/sendMessage',
-            data={'chat_id': TELEGRAM_CHAT_ID, 'text': text}
-        )
+        requests.post(f'https://api.telegram.org/bot{TELEGRAM_API_KEY}/sendMessage',
+                      data={'chat_id': TELEGRAM_CHAT_ID, 'text': text})
     except Exception as e:
         print(f"Error sending message to Telegram: {e}")
 
@@ -51,8 +50,11 @@ def decode_header(header):
 
 # 清理邮件内容
 def clean_email_body(body):
-    # 去掉多余的空行和空格
-    return re.sub(r'\n\s*\n', '\n', body).strip()
+    # 去除 HTML 标签
+    body = re.sub(r'<.*?>', '', body)
+    # 去除多余空格
+    body = ' '.join(body.split())
+    return body
 
 # 获取邮件内容并解决乱码问题
 def get_email_body(msg):
@@ -61,22 +63,21 @@ def get_email_body(msg):
         for part in msg.walk():
             if part.get_content_type() == 'text/plain':
                 charset = part.get_content_charset()
-                body = part.get_payload(decode=True).decode(charset or 'utf-8', errors='ignore')
+                if charset:
+                    body = part.get_payload(decode=True).decode(charset, errors='ignore')
+                else:
+                    body = part.get_payload(decode=True).decode('utf-8', errors='ignore')
                 break
     else:
         charset = msg.get_content_charset()
-        body = msg.get_payload(decode=True).decode(charset or 'utf-8', errors='ignore')
-    
-    # 清理邮件内容并转换 URL 为 Markdown 超链接
-    return convert_urls_to_markdown_links(clean_email_body(body))
-
-# 转换文本中的 URL 为 Markdown 超链接
-def convert_urls_to_markdown_links(text):
-    url_pattern = r'(https?://[^\s]+)'
-    return re.sub(url_pattern, r'[\1](\1)', text)
+        if charset:
+            body = msg.get_payload(decode=True).decode(charset, errors='ignore')
+        else:
+            body = msg.get_payload(decode=True).decode('utf-8', errors='ignore')
+    return clean_email_body(body)
 
 # 增加过滤功能开关
-receive_filter_enabled = False   # True表示开启接收过滤，False表示关闭过滤
+receive_filter_enabled = False   # True表示开启接收过滤，# False 表示关闭过滤
 reject_filter_enabled = False
 
 # 拒收关键词
@@ -84,11 +85,7 @@ reject_keywords = ['拒收', '信用卡', '广告']
 
 # 获取并处理邮件
 def fetch_emails():
-    keywords = [
-        '接收', '信用卡', 'google', 'Azure', 
-        'cloudflare', 'Microsoft', '账户', '账单', 
-        'Google', '帳戶', 'gmail', 'Cloud', '移动'
-    ]
+    keywords = ['接收', '信用卡', 'google', 'Azure', 'cloudflare', 'Microsoft', '账户', '账单', 'Google', '帳戶', 'gmail', 'Cloud', '移动']
     sent_emails = load_sent_emails()
     
     try:
@@ -127,7 +124,9 @@ def fetch_emails():
 {body}
 '''
             send_message(message)
-            sent_emails.append(subject)  # 记录发送的邮件
+            
+            # 记录发送的邮件
+            sent_emails.append(subject)
 
     except Exception as e:
         print(f"Error fetching emails: {e}")
