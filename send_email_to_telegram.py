@@ -76,7 +76,7 @@ def get_email_body(msg):
     return clean_email_body(body)
 
 # 增加过滤功能开关
-receive_filter_enabled = True    # True 表示开启接收过滤，# False 表示关闭过滤
+receive_filter_enabled = False    # True 表示开启接收过滤，# False 表示关闭过滤
 reject_filter_enabled = False
 
 # 拒收关键词
