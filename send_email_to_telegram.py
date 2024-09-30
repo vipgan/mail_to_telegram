@@ -4,6 +4,7 @@ import requests
 import os
 import json
 import time
+import re
 import markdown
 
 # 设置邮箱信息
@@ -33,9 +34,9 @@ def save_sent_emails(sent_emails):
 # 发送消息到 Telegram，增加1秒延迟
 def send_message(text):
     try:
-        requests.post(f'https://api.telegram.org/bot{TELEGRAM_API_KEY}/sendMessage',
-                      data={'chat_id': TELEGRAM_CHAT_ID, 'text': text, 'parse_mode': 'Markdown'})
         time.sleep(1)  # 增加1秒延迟
+        requests.post(f'https://api.telegram.org/bot{TELEGRAM_API_KEY}/sendMessage',
+                      data={'chat_id': TELEGRAM_CHAT_ID, 'text': text})
     except Exception as e:
         print(f"Error sending message to Telegram: {e}")
 
@@ -47,6 +48,14 @@ def decode_header(header):
         for fragment, encoding in decoded_fragments
     )
 
+# 清理邮件内容
+def clean_email_body(body):
+    # 去除 HTML 标签
+    body = re.sub(r'<.*?>', '', body)
+    # 去除多余空格
+    body = ' '.join(body.split())
+    return body
+
 # 获取邮件内容并解决乱码问题
 def get_email_body(msg):
     body = ""
@@ -55,31 +64,36 @@ def get_email_body(msg):
             if part.get_content_type() == 'text/plain':
                 charset = part.get_content_charset()
                 if charset:
-                    body = part.get_payload(decode=False).decode(charset, errors='ignore')
+                    body = part.get_payload(decode=True).decode(charset, errors='ignore')
                 else:
-                    body = part.get_payload(decode=False).decode('utf-8', errors='ignore')
+                    body = part.get_payload(decode=True).decode('utf-8', errors='ignore')
                 break
     else:
         charset = msg.get_content_charset()
         if charset:
-            body = msg.get_payload(decode=False).decode(charset, errors='ignore')
+            body = msg.get_payload(decode=True).decode(charset, errors='ignore')
         else:
-            body = msg.get_payload(decode=False).decode('utf-8', errors='ignore')
-    return body
+            body = msg.get_payload(decode=True).decode('utf-8', errors='ignore')
+    return clean_email_body(body)
+
+# 增加过滤功能开关
+receive_filter_enabled = False   # True表示开启接收过滤，# False 表示关闭过滤
+reject_filter_enabled = False
+
+# 拒收关键词
+reject_keywords = ['拒收', '信用卡', '广告']
 
 # 获取并处理邮件
 def fetch_emails():
-    keywords = ['账单', '信用卡', 'google', 'Azure', 'cloudflare', 'Microsoft', '账户', '安全提示', 'Google', '帳戶', 'gmail', 'Cloud', '移动']
-    whitelist = ['example@domain.com']  # 接收过滤
-    blacklist = ['example@domain.com']  # 拒收过滤
-    sent_emails = load_sent_emails()  # 加载已发送邮件记录
+    keywords = ['接收', '信用卡', 'google', 'Azure', 'cloudflare', 'Microsoft', '账户', '账单', 'Google', '帳戶', 'gmail', 'Cloud', '移动']
+    sent_emails = load_sent_emails()
     
     try:
         mail = imaplib.IMAP4_SSL(imap_server)
         mail.login(email_user, email_password)
         mail.select('inbox')
 
-        status, messages = mail.search(None, 'UNSEEN')  # 只搜索未读邮件
+        status, messages = mail.search(None, 'ALL')
         email_ids = messages[0].split()
 
         for email_id in email_ids:
@@ -88,35 +102,37 @@ def fetch_emails():
             
             subject = decode_header(msg['subject'])
             sender = decode_header(msg['from'])
-            
-            # 检查邮件ID是否已经发送过
-            if subject in sent_emails:
-                continue  # 如果邮件已经发送，跳过
-
-            # 检查黑名单
-            if any(blacklisted in sender for blacklisted in blacklist):
-                continue  # 如果发件人被拒收，跳过
-
-            # 检查白名单
-            if whitelist and not any(whitelisted in sender for whitelisted in whitelist):
-                continue  # 如果发件人不在白名单中，跳过
-
-            # 获取邮件内容
             body = get_email_body(msg)
 
-            # 检查主题是否包含关键词
-            if any(keyword in subject for keyword in keywords):
-                formatted_body = markdown.markdown(body)
-                send_message(f'*New Email:*\n*From:* {sender}\n*Subject:* {subject}\n*Content:* {formatted_body}')
-                
-                # 记录发送的邮件
-                sent_emails.append(subject)
+            # 检查邮件ID是否已经发送过
+            if subject in sent_emails:
+                continue
+
+            # 应用接收过滤
+            if receive_filter_enabled and not any(keyword in subject for keyword in keywords):
+                continue
+            
+            # 应用拒收过滤
+            if reject_filter_enabled and any(keyword in subject for keyword in reject_keywords):
+                continue
+
+            # 发送消息，使用 Markdown 格式
+            message = f'''
+**发件人**: {sender}  
+**主题**: {subject}  
+**内容**:  
+{body}
+'''
+            send_message(message)
+            
+            # 记录发送的邮件
+            sent_emails.append(subject)
 
     except Exception as e:
         print(f"Error fetching emails: {e}")
     finally:
         mail.logout()
-        save_sent_emails(sent_emails)  # 保存已发送邮件记录
+        save_sent_emails(sent_emails)
 
 if __name__ == '__main__':
     fetch_emails()
