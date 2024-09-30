@@ -49,6 +49,11 @@ def decode_header(header):
         for fragment, encoding in decoded_fragments
     )
 
+# 清理邮件内容
+def clean_email_body(body):
+    # 去掉多余的空行和空格
+    return re.sub(r'\n\s*\n', '\n', body).strip()
+
 # 获取邮件内容并解决乱码问题
 def get_email_body(msg):
     body = ""
@@ -62,7 +67,7 @@ def get_email_body(msg):
         charset = msg.get_content_charset()
         body = msg.get_payload(decode=True).decode(charset or 'utf-8', errors='ignore')
     
-    # 转换 URL 为 Markdown 超链接
+    # 清理邮件内容并转换 URL 为 Markdown 超链接
     return convert_urls_to_markdown_links(clean_email_body(body))
 
 # 转换文本中的 URL 为 Markdown 超链接
