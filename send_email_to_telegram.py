@@ -4,7 +4,6 @@ import requests
 import os
 import json
 import time
-import markdown2
 
 # 设置邮箱信息
 email_user = os.environ['EMAIL_USER']
@@ -51,7 +50,7 @@ def decode_header(header):
 
 # 转义 Markdown 特殊字符
 def escape_markdown(text):
-    escape_chars = ['.', '*', '_', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!', 'http', 'https']
+    escape_chars = ['.', '*', '_', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '!', 'http', 'https']
     for char in escape_chars:
         text = text.replace(char, f'\\{char}')
     return text
