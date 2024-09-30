@@ -62,9 +62,9 @@ def get_email_body(msg):
     else:
         charset = msg.get_content_charset()
         if charset:
-            body = msg.get_payload(decode=True).decode(charset, errors='ignore')
+            body = msg.get_payload(decode=False).decode(charset, errors='ignore')
         else:
-            body = msg.get_payload(decode=True).decode('utf-8', errors='ignore')
+            body = msg.get_payload(decode=False).decode('utf-8', errors='ignore')
     return body
 
 # 获取并处理邮件
