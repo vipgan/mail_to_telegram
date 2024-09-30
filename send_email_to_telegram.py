@@ -55,9 +55,9 @@ def get_email_body(msg):
             if part.get_content_type() == 'text/plain':
                 charset = part.get_content_charset()
                 if charset:
-                    body = part.get_payload(decode=True).decode(charset, errors='ignore')
+                    body = part.get_payload(decode=False).decode(charset, errors='ignore')
                 else:
-                    body = part.get_payload(decode=True).decode('utf-8', errors='ignore')
+                    body = part.get_payload(decode=False).decode('utf-8', errors='ignore')
                 break
     else:
         charset = msg.get_content_charset()
@@ -71,7 +71,7 @@ def get_email_body(msg):
 def fetch_emails():
     keywords = ['账单', '信用卡', 'google', 'Azure', 'cloudflare', 'Microsoft', '账户', '安全提示', 'Google', '帳戶', 'gmail', 'Cloud', '移动']
     whitelist = ['example@domain.com']  # 接收过滤
-    blacklist = ['spam@domain.com']     # 拒收过滤
+    blacklist = ['example@domain.com']  # 拒收过滤
     sent_emails = load_sent_emails()  # 加载已发送邮件记录
     
     try:
