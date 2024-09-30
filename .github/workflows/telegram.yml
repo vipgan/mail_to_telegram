@@ -24,6 +24,7 @@ jobs:
         run: |
           pip install requests
           pip install imaplib2
+          pip install markdown
 
       - name: Run the script
         env:
