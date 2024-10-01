@@ -30,12 +30,12 @@ def save_sent_emails(sent_emails):
     with open(sent_emails_file, 'w') as f:
         json.dump(sent_emails, f)
 
-# 发送消息到 Telegram，增加1秒延迟
+# 发送消息到 Telegram，使用 HTML 格式并增加1秒延迟
 def send_message(text):
     try:
         time.sleep(1)  # 增加1秒延迟
         requests.post(f'https://api.telegram.org/bot{TELEGRAM_API_KEY}/sendMessage',
-                      data={'chat_id': TELEGRAM_CHAT_ID, 'text': text, 'parse_mode': 'Markdown'})
+                      data={'chat_id': TELEGRAM_CHAT_ID, 'text': text, 'parse_mode': 'HTML'})
     except Exception as e:
         print(f"Error sending message to Telegram: {e}")
 
@@ -47,14 +47,14 @@ def decode_header(header):
         for fragment, encoding in decoded_fragments
     )
 
-# 清理邮件内容并转换为 Markdown 格式
+# 清理邮件内容并转换为 Telegram 支持的 HTML 格式
 def clean_email_body(body):
-    # 替换 HTML 标签为 Markdown 格式
-    body = re.sub(r'<b>(.*?)</b>', r'**\1**', body)  # 粗体
-    body = re.sub(r'<i>(.*?)</i>', r'_\1_', body)    # 斜体
-    body = re.sub(r'<u>(.*?)</u>', r'__\1__', body)  # 下划线
+    # 替换 HTML 标签为 Telegram 支持的格式
+    body = re.sub(r'<b>(.*?)</b>', r'<b>\1</b>', body)  # 粗体
+    body = re.sub(r'<i>(.*?)</i>', r'<i>\1</i>', body)  # 斜体
+    body = re.sub(r'<u>(.*?)</u>', r'<u>\1</u>', body)  # 下划线
 
-    # 去除其他 HTML 标签
+    # 去除其他不支持的 HTML 标签
     body = re.sub(r'<.*?>', '', body)
     body = re.sub(r'&.*?;', '', body)  # 去除 HTML 实体
     body = ' '.join(body.split())  # 去除多余空格
@@ -65,7 +65,7 @@ def get_email_body(msg):
     body = ""
     if msg.is_multipart():
         for part in msg.walk():
-            if part.get_content_type() == 'text/plain':
+            if part.get_content_type() == 'text/plain' or part.get_content_type() == 'text/html':
                 charset = part.get_content_charset()
                 body = part.get_payload(decode=True).decode(charset or 'utf-8', errors='ignore')
                 break
@@ -88,12 +88,6 @@ def fetch_emails():
         email_ids = messages[0].split()
 
         for email_id in email_ids:
-            email_id = email_id.decode()  # 邮件ID是字节类型，转换为字符串
-            
-            # 检查邮件ID是否已经发送过
-            if email_id in sent_emails:
-                continue
-
             _, msg_data = mail.fetch(email_id, '(RFC822)')
             msg = email.message_from_bytes(msg_data[0][1])
             
@@ -101,17 +95,21 @@ def fetch_emails():
             sender = decode_header(msg['from'])
             body = get_email_body(msg)
 
-            # 发送消息，使用 Markdown 格式
+            # 检查邮件ID是否已经发送过
+            if subject in sent_emails:
+                continue
+
+            # 发送消息，使用 HTML 格式
             message = f'''
-**发件人**: {sender.replace("_", "\\_")}  
-**主题**: {subject.replace("_", "\\_")}  
-**内容**:  
+<b>发件人</b>: {sender}<br>
+<b>主题</b>: {subject}<br>
+<b>内容</b>:<br>
 {body}
 '''
             send_message(message)
             
-            # 记录发送的邮件ID
-            sent_emails.append(email_id)
+            # 记录发送的邮件
+            sent_emails.append(subject)
 
     except Exception as e:
         print(f"Error fetching emails: {e}")
