@@ -3,7 +3,7 @@ name: Send QQ Emails to Telegram
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 */6 * * *'  # 每6小时运行一次
+    - cron: '0 */2 * * *'  # 每6小时运行一次
   push:
     branches:
       - main  # 在主分支代码更新时触发
