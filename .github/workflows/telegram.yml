@@ -23,7 +23,6 @@ jobs:
       - name: Install dependencies
         run: |
           pip install requests
-          pip install imaplib2
 
       - name: Run the script
         env:
