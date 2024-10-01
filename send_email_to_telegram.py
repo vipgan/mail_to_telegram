@@ -5,8 +5,8 @@ import os
 import json
 import time
 import re
+import threading
 from datetime import datetime, timedelta
-from concurrent.futures import ThreadPoolExecutor
 
 # 设置邮箱信息
 email_user = os.environ['EMAIL_USER']
@@ -51,10 +51,13 @@ def decode_header(header):
 
 # 清理邮件内容并转换为 Markdown 格式
 def clean_email_body(body):
+    # 替换 HTML 标签为 Markdown 格式
     body = re.sub(r'<b>(.*?)</b>', r'**\1**', body)  # 粗体
     body = re.sub(r'<i>(.*?)</i>', r'_\1_', body)    # 斜体
     body = re.sub(r'<u>(.*?)</u>', r'__\1__', body)  # 下划线
-    body = re.sub(r'<.*?>', '', body)  # 去除其他 HTML 标签
+
+    # 去除其他 HTML 标签
+    body = re.sub(r'<.*?>', '', body)
     body = re.sub(r'&.*?;', '', body)  # 去除 HTML 实体
     body = ' '.join(body.split())  # 去除多余空格
     return body
@@ -74,7 +77,6 @@ def get_email_body(msg):
     return clean_email_body(body)
 
 # 处理单个邮件
-def# 处理单个邮件
 def process_email(email_id, mail, sent_emails):
     try:
         _, msg_data = mail.fetch(email_id, '(RFC822)')
@@ -102,8 +104,7 @@ def process_email(email_id, mail, sent_emails):
 
 # 获取并处理邮件
 def fetch_emails():
-    # 设定最近一周的时间范围
-    date_since = (datetime.now() - timedelta(days=7)).strftime("%d-%b-%Y")
+    keywords = ['接收', '信用卡', 'google', 'Azure', 'cloudflare', 'Microsoft', '账户', '账单']
     sent_emails = load_sent_emails()
     
     try:
@@ -111,14 +112,25 @@ def fetch_emails():
         mail.login(email_user, email_password)
         mail.select('inbox')
 
-        # 只扫描最近一周的邮件
-        status, messages = mail.search(None, f'(SINCE "{date_since}")')
+        # 获取最近一周的日期
+        week_ago = (datetime.now() - timedelta(days=7)).strftime("%d-%b-%Y")
+
+        # 搜索最近一周的邮件
+        status, messages = mail.search(None, f'SINCE {week_ago}')
         email_ids = messages[0].split()
 
-        # 使用线程池多线程处理邮件
-        with ThreadPoolExecutor(max_workers=5) as executor:
-            for email_id in email_ids:
-                executor.submit(process_email, email_id, mail, sent_emails)
+        # 创建线程列表
+        threads = []
+
+        for email_id in email_ids:
+            # 为每个邮件创建一个线程
+            thread = threading.Thread(target=process_email, args=(email_id, mail, sent_emails))
+            threads.append(thread)
+            thread.start()
+
+        # 等待所有线程完成
+        for thread in threads:
+            thread.join()
 
     except Exception as e:
         print(f"Error fetching emails: {e}")
