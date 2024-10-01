@@ -51,17 +51,18 @@ def parse_email(mail, email_id):
 # 发送消息到 Telegram
 def send_message_to_telegram(subject, from_, body):
     text = f"Subject: {subject}\nFrom: {from_}\n\n{body}"
+
+    # 避免解析错误，发送前对特殊字符进行转义
+    escape_chars = ['_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!']
+    for char in escape_chars:
+        text = text.replace(char, f'\\{char}')
+    
     url = f"https://api.telegram.org/bot{TELEGRAM_API_KEY}/sendMessage"
     payload = {
         "chat_id": TELEGRAM_CHAT_ID,
         "text": text,  # 发送纯文本消息
         "parse_mode": "MarkdownV2"  # 使用MarkdownV2确保特殊字符被正确转义
     }
-
-    # 避免解析错误，发送前对特殊字符进行转义
-    escape_chars = ['_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!']
-    for char in escape_chars:
-        text = text.replace(char, f'\\{char}')
 
     response = requests.post(url, data=payload)
     if response.status_code != 200:
@@ -89,14 +90,15 @@ def main():
     print(f"Found {len(email_ids)} unread emails.")
     
     for email_id in email_ids:
-        if email_id in sent_emails:
-            print(f"Email with ID {email_id} already sent.")
+        email_id_str = email_id.decode()  # 将字节对象转换为字符串
+        if email_id_str in sent_emails:
+            print(f"Email with ID {email_id_str} already sent.")
             continue
         
         subject, from_, body = parse_email(mail, email_id)
         if subject and from_ and body:
             send_message_to_telegram(subject, from_, body)
-            sent_emails.append(email_id)
+            sent_emails.append(email_id_str)  # 保存为字符串
             time.sleep(1)  # 增加延迟，避免Telegram API限制
 
     save_sent_email(sent_emails)
