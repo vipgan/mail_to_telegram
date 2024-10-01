@@ -74,13 +74,14 @@ def get_email_body(msg):
     return clean_email_body(body)
 
 # 处理单个邮件
+def# 处理单个邮件
 def process_email(email_id, mail, sent_emails):
     try:
         _, msg_data = mail.fetch(email_id, '(RFC822)')
         msg = email.message_from_bytes(msg_data[0][1])
         
-        subject = decode_header(msg['subject'])
-        sender = decode_header(msg['from'])
+        subject = decode_header(msg['subject']).replace('_', '\\_')  # 转义下划线
+        sender = decode_header(msg['from']).replace('_', '\\_')      # 转义下划线
         body = get_email_body(msg)
 
         # 检查邮件主题是否已经发送过
@@ -88,8 +89,8 @@ def process_email(email_id, mail, sent_emails):
             return
         
         # 发送消息，使用 Markdown 格式
-        message = f"**发件人**: {sender.replace('_', '\\_')}\n" \
-                  f"**主题**: {subject.replace('_', '\\_')}\n" \
+        message = f"**发件人**: {sender}\n" \
+                  f"**主题**: {subject}\n" \
                   f"**内容**:\n{body}"
         send_message(message)
 
