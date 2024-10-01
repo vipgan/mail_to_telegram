@@ -5,6 +5,8 @@ import os
 import json
 import time
 import re
+from datetime import datetime, timedelta
+from concurrent.futures import ThreadPoolExecutor
 
 # 设置邮箱信息
 email_user = os.environ['EMAIL_USER']
@@ -49,13 +51,10 @@ def decode_header(header):
 
 # 清理邮件内容并转换为 Markdown 格式
 def clean_email_body(body):
-    # 替换 HTML 标签为 Markdown 格式
     body = re.sub(r'<b>(.*?)</b>', r'**\1**', body)  # 粗体
     body = re.sub(r'<i>(.*?)</i>', r'_\1_', body)    # 斜体
     body = re.sub(r'<u>(.*?)</u>', r'__\1__', body)  # 下划线
-
-    # 去除其他 HTML 标签
-    body = re.sub(r'<.*?>', '', body)
+    body = re.sub(r'<.*?>', '', body)  # 去除其他 HTML 标签
     body = re.sub(r'&.*?;', '', body)  # 去除 HTML 实体
     body = ' '.join(body.split())  # 去除多余空格
     return body
@@ -74,9 +73,39 @@ def get_email_body(msg):
         body = msg.get_payload(decode=True).decode(charset or 'utf-8', errors='ignore')
     return clean_email_body(body)
 
+# 处理单个邮件
+def process_email(email_id, mail, sent_emails):
+    try:
+        _, msg_data = mail.fetch(email_id, '(RFC822)')
+        msg = email.message_from_bytes(msg_data[0][1])
+        
+        subject = decode_header(msg['subject'])
+        sender = decode_header(msg['from'])
+        body = get_email_body(msg)
+
+        # 检查邮件主题是否已经发送过
+        if subject in sent_emails:
+            return
+        
+        # 发送消息，使用 Markdown 格式
+        message = f'''
+**发件人**: {sender.replace("_", "\\_")}  
+**主题**: {subject.replace("_", "\\_")}  
+**内容**:  
+{body}
+'''
+        send_message(message)
+
+        # 记录发送的邮件
+        sent_emails.append(subject)
+
+    except Exception as e:
+        print(f"Error processing email ID {email_id}: {e}")
+
 # 获取并处理邮件
 def fetch_emails():
-    keywords = ['接收', '信用卡', 'google', 'Azure', 'cloudflare', 'Microsoft', '账户', '账单']
+    # 设定最近一周的时间范围
+    date_since = (datetime.now() - timedelta(days=7)).strftime("%d-%b-%Y")
     sent_emails = load_sent_emails()
     
     try:
@@ -84,32 +113,14 @@ def fetch_emails():
         mail.login(email_user, email_password)
         mail.select('inbox')
 
-        status, messages = mail.search(None, 'ALL')
+        # 只扫描最近一周的邮件
+        status, messages = mail.search(None, f'(SINCE "{date_since}")')
         email_ids = messages[0].split()
 
-        for email_id in email_ids:
-            _, msg_data = mail.fetch(email_id, '(RFC822)')
-            msg = email.message_from_bytes(msg_data[0][1])
-            
-            subject = decode_header(msg['subject'])
-            sender = decode_header(msg['from'])
-            body = get_email_body(msg)
-
-            # 检查邮件ID是否已经发送过
-            if subject in sent_emails:
-                continue
-
-            # 发送消息，使用 Markdown 格式
-            message = f'''
-**发件人**: {sender}  
-**主题**: {subject}  
-**内容**:  
-{body}
-'''
-            send_message(message)
-            
-            # 记录发送的邮件
-            sent_emails.append(subject)
+        # 使用线程池多线程处理邮件
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            for email_id in email_ids:
+                executor.submit(process_email, email_id, mail, sent_emails)
 
     except Exception as e:
         print(f"Error fetching emails: {e}")
