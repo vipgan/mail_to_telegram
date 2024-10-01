@@ -88,12 +88,9 @@ def process_email(email_id, mail, sent_emails):
             return
         
         # 发送消息，使用 Markdown 格式
-        message = f'''
-**发件人**: {sender.replace("_", "\\_")}  
-**主题**: {subject.replace("_", "\\_")}  
-**内容**:  
-{body}
-'''
+        message = f"**发件人**: {sender.replace('_', '\\_')}\n" \
+                  f"**主题**: {subject.replace('_', '\\_')}\n" \
+                  f"**内容**:\n{body}"
         send_message(message)
 
         # 记录发送的邮件
