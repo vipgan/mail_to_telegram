@@ -76,6 +76,7 @@ def get_email_body(msg):
 
 # 获取并处理邮件
 def fetch_emails():
+    keywords = ['接收', '信用卡', 'google', 'Azure', 'cloudflare', 'Microsoft', '账户', '账单']
     sent_emails = load_sent_emails()
     
     try:
@@ -98,10 +99,12 @@ def fetch_emails():
             if subject in sent_emails:
                 continue
 
-            # 格式化信息，确保 Markdown 旧版语法正确渲染
-            message = f'''**发件人**: {sender.replace("_", "\\_")}  \n\
-**主题**: {subject.replace("_", "\\_")}  \n\
-**内容**:  \n\
+            # 发送消息，使用 Markdown 旧版格式
+            message = f'''
+**github mail**
+**发件人**: {sender}  
+**主题**: {subject}  
+**内容**:  
 {body}
 '''
             send_message(message)
