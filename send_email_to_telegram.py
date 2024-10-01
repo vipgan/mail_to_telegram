@@ -6,7 +6,6 @@ import json
 import time
 import re
 from datetime import datetime, timedelta
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # 设置邮箱信息
 email_user = os.environ['EMAIL_USER']
@@ -75,30 +74,7 @@ def get_email_body(msg):
         body = msg.get_payload(decode=True).decode(charset or 'utf-8', errors='ignore')
     return clean_email_body(body)
 
-# 处理每封邮件的函数，负责解析和发送邮件
-def process_email(email_id, msg_data, sent_emails):
-    try:
-        msg = email.message_from_bytes(msg_data)
-        
-        subject = decode_header(msg['subject'])
-        sender = decode_header(msg['from'])
-        body = get_email_body(msg)
-
-        # 发送消息，使用 Markdown 格式
-        message = f'''
-**发件人**: {sender.replace("_", "\\_")}  
-**主题**: {subject.replace("_", "\\_")}  
-**内容**:  
-{body}
-'''
-        send_message(message)
-        
-        # 记录发送的邮件ID
-        sent_emails.append(email_id)
-    except Exception as e:
-        print(f"Error processing email {email_id}: {e}")
-
-# 获取并处理邮件，只扫描最近 3 天的邮件，使用多线程处理
+# 获取并处理邮件，只扫描最近 3 天的邮件
 def fetch_emails():
     sent_emails = load_sent_emails()
     
@@ -114,24 +90,31 @@ def fetch_emails():
         status, messages = mail.search(None, f'(SINCE {since_date})')
         email_ids = messages[0].split()
 
-        with ThreadPoolExecutor(max_workers=5) as executor:
-            futures = []
-            for email_id in email_ids:
-                email_id = email_id.decode()  # 邮件ID是字节类型，转换为字符串
-                
-                # 检查邮件ID是否已经发送过
-                if email_id in sent_emails:
-                    continue
+        for email_id in email_ids:
+            email_id = email_id.decode()  # 邮件ID是字节类型，转换为字符串
+            
+            # 检查邮件ID是否已经发送过
+            if email_id in sent_emails:
+                continue
 
-                # 获取邮件内容
-                _, msg_data = mail.fetch(email_id, '(RFC822)')
+            _, msg_data = mail.fetch(email_id, '(RFC822)')
+            msg = email.message_from_bytes(msg_data[0][1])
+            
+            subject = decode_header(msg['subject'])
+            sender = decode_header(msg['from'])
+            body = get_email_body(msg)
 
-                # 提交到线程池处理每封邮件
-                futures.append(executor.submit(process_email, email_id, msg_data[0][1], sent_emails))
-
-            # 等待所有线程完成
-            for future in as_completed(futures):
-                future.result()
+            # 发送消息，使用 Markdown 格式
+            message = f'''
+**发件人**: {sender.replace("_", "\\_")}  
+**主题**: {subject.replace("_", "\\_")}  
+**内容**:  
+{body}
+'''
+            send_message(message)
+            
+            # 记录发送的邮件ID
+            sent_emails.append(email_id)
 
     except Exception as e:
         print(f"Error fetching emails: {e}")
