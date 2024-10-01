@@ -5,8 +5,6 @@ import os
 import json
 import time
 import re
-import threading
-from datetime import datetime, timedelta
 
 # 设置邮箱信息
 email_user = os.environ['EMAIL_USER']
@@ -76,32 +74,6 @@ def get_email_body(msg):
         body = msg.get_payload(decode=True).decode(charset or 'utf-8', errors='ignore')
     return clean_email_body(body)
 
-# 处理单个邮件
-def process_email(email_id, mail, sent_emails):
-    try:
-        _, msg_data = mail.fetch(email_id, '(RFC822)')
-        msg = email.message_from_bytes(msg_data[0][1])
-        
-        subject = decode_header(msg['subject']).replace('_', '\\_')  # 转义下划线
-        sender = decode_header(msg['from']).replace('_', '\\_')      # 转义下划线
-        body = get_email_body(msg)
-
-        # 检查邮件主题是否已经发送过
-        if subject in sent_emails:
-            return
-        
-        # 发送消息，使用 Markdown 格式
-        message = f"**发件人**: {sender}\n" \
-                  f"**主题**: {subject}\n" \
-                  f"**内容**:\n{body}"
-        send_message(message)
-
-        # 记录发送的邮件
-        sent_emails.append(subject)
-
-    except Exception as e:
-        print(f"Error processing email ID {email_id}: {e}")
-
 # 获取并处理邮件
 def fetch_emails():
     keywords = ['接收', '信用卡', 'google', 'Azure', 'cloudflare', 'Microsoft', '账户', '账单']
@@ -112,25 +84,34 @@ def fetch_emails():
         mail.login(email_user, email_password)
         mail.select('inbox')
 
-        # 获取最近一周的日期
-        week_ago = (datetime.now() - timedelta(days=7)).strftime("%d-%b-%Y")
-
-        # 搜索最近一周的邮件
-        status, messages = mail.search(None, f'SINCE {week_ago}')
+        status, messages = mail.search(None, 'ALL')
         email_ids = messages[0].split()
 
-        # 创建线程列表
-        threads = []
-
         for email_id in email_ids:
-            # 为每个邮件创建一个线程
-            thread = threading.Thread(target=process_email, args=(email_id, mail, sent_emails))
-            threads.append(thread)
-            thread.start()
+            email_id = email_id.decode()  # 邮件ID是字节类型，转换为字符串
+            
+            # 检查邮件ID是否已经发送过
+            if email_id in sent_emails:
+                continue
 
-        # 等待所有线程完成
-        for thread in threads:
-            thread.join()
+            _, msg_data = mail.fetch(email_id, '(RFC822)')
+            msg = email.message_from_bytes(msg_data[0][1])
+            
+            subject = decode_header(msg['subject'])
+            sender = decode_header(msg['from'])
+            body = get_email_body(msg)
+
+            # 发送消息，使用 Markdown 格式
+            message = f'''
+**发件人**: {sender.replace("_", "\\_")}  
+**主题**: {subject.replace("_", "\\_")}  
+**内容**:  
+{body}
+'''
+            send_message(message)
+            
+            # 记录发送的邮件ID
+            sent_emails.append(email_id)
 
     except Exception as e:
         print(f"Error fetching emails: {e}")
