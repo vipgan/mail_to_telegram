@@ -49,7 +49,7 @@ def decode_header(header):
 
 # 清理邮件内容并转换为 Markdown 格式
 def clean_email_body(body):
-    # 替换 HTML 标签为 Markdown 旧版格式
+    # 替换 HTML 标签为 Markdown 格式
     body = re.sub(r'<b>(.*?)</b>', r'**\1**', body)  # 粗体
     body = re.sub(r'<i>(.*?)</i>', r'_\1_', body)    # 斜体
     body = re.sub(r'<u>(.*?)</u>', r'__\1__', body)  # 下划线
@@ -95,13 +95,12 @@ def fetch_emails():
             sender = decode_header(msg['from'])
             body = get_email_body(msg)
 
-            # 检查邮件主题是否已经发送过
+            # 检查邮件ID是否已经发送过
             if subject in sent_emails:
                 continue
 
-            # 发送消息，使用 Markdown 旧版格式
+            # 发送消息，使用 Markdown 格式
             message = f'''
-**github mail**
 **发件人**: {sender}  
 **主题**: {subject}  
 **内容**:  
@@ -109,7 +108,7 @@ def fetch_emails():
 '''
             send_message(message)
             
-            # 记录发送的邮件主题
+            # 记录发送的邮件
             sent_emails.append(subject)
 
     except Exception as e:
