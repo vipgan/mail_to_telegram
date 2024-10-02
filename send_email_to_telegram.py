@@ -36,14 +36,13 @@ def send_message(text):
     try:
         time.sleep(1)  # 增加1秒延迟
         if len(text) > MAX_MESSAGE_LENGTH:
-            # 消息过长，截断并发送前 MAX_MESSAGE_LENGTH 个字符
-            text = text[:MAX_MESSAGE_LENGTH]
+            text = text[:MAX_MESSAGE_LENGTH]  # 截断消息
         response = requests.post(f'https://api.telegram.org/bot{TELEGRAM_API_KEY}/sendMessage',
-                      data={'chat_id': TELEGRAM_CHAT_ID, 'text': text, 'parse_mode': 'MarkdownV2'})
+                                 data={'chat_id': TELEGRAM_CHAT_ID, 'text': text, 'parse_mode': 'HTML'})
         response.raise_for_status()
     except Exception as e:
         print(f"Error sending message to Telegram: {e}")
-        print(f"Failed message content: {text}")  # 打印出发送失败的消息内容
+        print(f"Failed message content: {text}")
 
 # 解码邮件头
 def decode_header(header):
@@ -53,17 +52,15 @@ def decode_header(header):
         for fragment, encoding in decoded_fragments
     )
 
-# 清理邮件内容并转换为 MarkdownV2 格式
+# 清理邮件内容并转换为 HTML 格式
 def clean_email_body(body):
-    # 替换 HTML 标签为 MarkdownV2 格式
-    body = re.sub(r'<b>(.*?)</b>', r'*\1*', body)  # 粗体
-    body = re.sub(r'<i>(.*?)</i>', r'_\1_', body)  # 斜体
-    body = re.sub(r'<u>(.*?)</u>', r'__\1__', body)  # 下划线
-    body = re.sub(r'<.*?>', '', body)  # 移除其他 HTML 标签
+    # 替换 HTML 标签为 Telegram 支持的 HTML 格式
+    body = re.sub(r'<b>(.*?)</b>', r'<b>\1</b>', body)  # 粗体
+    body = re.sub(r'<i>(.*?)</i>', r'<i>\1</i>', body)  # 斜体
+    body = re.sub(r'<u>(.*?)</u>', r'<u>\1</u>', body)  # 下划线
+    body = re.sub(r'<.*?>', '', body)  # 移除无效的 HTML 标签
     body = re.sub(r'&.*?;', '', body)  # 移除 HTML 实体
-    body = re.sub(r'([_*[\]()~`>#+\-=|{}.!])', r'\\\1', body)  # 转义 MarkdownV2 特殊字符
 
-    # 保留原始换行和多余空格
     lines = body.splitlines()  # 按行拆分
     cleaned_lines = [line.strip() for line in lines]  # 去除每行两端的多余空白
     body = '\n'.join(cleaned_lines)  # 保留行间的换行
@@ -86,7 +83,7 @@ def get_email_body(msg):
 # 获取并处理邮件
 def fetch_emails():
     sent_emails = load_sent_emails()
-    
+
     try:
         mail = imaplib.IMAP4_SSL(imap_server)
         mail.login(email_user, email_password)
@@ -98,7 +95,7 @@ def fetch_emails():
         for email_id in email_ids:
             _, msg_data = mail.fetch(email_id, '(RFC822)')
             msg = email.message_from_bytes(msg_data[0][1])
-            
+
             subject = decode_header(msg['subject'])
             sender = decode_header(msg['from'])
             body = get_email_body(msg)
@@ -107,15 +104,15 @@ def fetch_emails():
             if subject in sent_emails:
                 continue
 
-            # 发送消息到 Telegram，使用 MarkdownV2 格式
+            # 发送消息到 Telegram，使用 HTML 格式
             message = f'''
-*发件人*: {sender}  
-*主题*: {subject}  
-*内容*:  
+<b>发件人</b>: {sender}  
+<b>主题</b>: {subject}  
+<b>内容</b>:  
 {body}
 '''
             send_message(message)
-            
+
             # 记录已发送的邮件
             sent_emails.append(subject)
 
