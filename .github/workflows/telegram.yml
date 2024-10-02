@@ -1,8 +1,12 @@
 name: Scan Email and Notify
 
 on:
+  workflow_dispatch:
   schedule:
-    - cron: '0 * * * *'  # 每小时执行一次
+    - cron: '0 */6 * * *'  # 每6小时运行一次
+  push:
+    branches:
+      - main  # 在主分支代码更新时触发
 
 jobs:
   scan-email:
