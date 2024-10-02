@@ -17,6 +17,7 @@ TELEGRAM_CHAT_ID = os.environ['TELEGRAM_CHAT_ID']
 
 # 保存发送记录文件
 sent_emails_file = 'sent_emails.json'
+MAX_MESSAGE_LENGTH = 4096  # Telegram 单条消息的最大长度
 
 # 加载已发送的邮件记录
 def load_sent_emails():
@@ -34,11 +35,15 @@ def save_sent_emails(sent_emails):
 def send_message(text):
     try:
         time.sleep(1)  # 增加1秒延迟
+        if len(text) > MAX_MESSAGE_LENGTH:
+            # 消息过长，截断并发送前 MAX_MESSAGE_LENGTH 个字符
+            text = text[:MAX_MESSAGE_LENGTH]
         response = requests.post(f'https://api.telegram.org/bot{TELEGRAM_API_KEY}/sendMessage',
                       data={'chat_id': TELEGRAM_CHAT_ID, 'text': text, 'parse_mode': 'MarkdownV2'})
         response.raise_for_status()
     except Exception as e:
         print(f"Error sending message to Telegram: {e}")
+        print(f"Failed message content: {text}")  # 打印出发送失败的消息内容
 
 # 解码邮件头
 def decode_header(header):
@@ -80,7 +85,6 @@ def get_email_body(msg):
 
 # 获取并处理邮件
 def fetch_emails():
-    keywords = ['接收', '信用卡', 'google', 'Azure', 'cloudflare', 'Microsoft', '账户', '账单']
     sent_emails = load_sent_emails()
     
     try:
