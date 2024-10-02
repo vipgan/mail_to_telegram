@@ -32,17 +32,19 @@ def save_sent_emails(sent_emails):
     with open(sent_emails_file, 'w') as f:
         json.dump(sent_emails, f)
 
-# 发送消息到 Telegram
+# 发送消息到 Telegram，并添加调试输出
 def send_message(text):
     try:
         time.sleep(1)  # 增加1秒延迟
         if len(text) > MAX_MESSAGE_LENGTH:
             text = text[:MAX_MESSAGE_LENGTH]  # 截断消息
+        print(f"发送的消息内容: {text}")  # 打印要发送的消息内容
         response = requests.post(f'https://api.telegram.org/bot{TELEGRAM_API_KEY}/sendMessage',
-                                 data={'chat_id': TELEGRAM_CHAT_ID, 'text': text, 'parse_mode': 'HTML'})
+                                 data={'chat_id': TELEGRAM_CHAT_ID, 'text': text})  # 暂时移除 'parse_mode': 'HTML'
         response.raise_for_status()
     except Exception as e:
         print(f"Error sending message to Telegram: {e}")
+        print(f"Failed message content: {text}")  # 打印失败的消息内容
 
 # 解码邮件头
 def decode_header(header):
@@ -111,11 +113,11 @@ def fetch_emails():
             if subject in sent_emails:
                 continue
 
-            # 发送消息到 Telegram，使用 HTML 格式
+            # 发送消息到 Telegram，暂时移除 HTML 格式
             message = f'''
-<b>发件人</b>: {sender}  
-<b>主题</b>: {subject}  
-<b>内容</b>:  
+发件人: {sender}  
+主题: {subject}  
+内容:  
 {body}
 '''
             send_message(message)
@@ -130,4 +132,7 @@ def fetch_emails():
         save_sent_emails(sent_emails)
 
 if __name__ == '__main__':
-    fetch_emails()
+    # 测试发送简单消息
+    send_message("<b>测试消息</b>")  # 简单消息测试，看看能否成功发送
+
+    fetch_emails()  # 获取并发送邮件
