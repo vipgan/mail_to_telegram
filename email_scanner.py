@@ -1,74 +1,121 @@
-import os
 import imaplib
-import datetime
-import asyncio
+import email
+import requests
+import os
+import json
+import time
 import re
-from telegram import Bot
 
-async def scan_emails_and_notify():
-    EMAIL_USER = os.getenv('EMAIL_USER')
-    EMAIL_PASSWORD = os.getenv('EMAIL_PASSWORD')
-    TELEGRAM_API_KEY = os.getenv('TELEGRAM_API_KEY')
-    TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
-    SENT_EMAILS_FILE = 'sent_emails.txt'
-    MAX_MESSAGE_LENGTH = 4096  # Telegram 消息最大长度
+# 设置邮箱信息
+email_user = os.environ['EMAIL_USER']
+email_password = os.environ['EMAIL_PASSWORD']
+imap_server = "imap.qq.com"
 
-    # 加载已发送邮件的ID
-    sent_email_ids = load_sent_email_ids(SENT_EMAILS_FILE)
+# 设置 Telegram 信息
+TELEGRAM_API_KEY = os.environ['TELEGRAM_API_KEY']
+TELEGRAM_CHAT_ID = os.environ['TELEGRAM_CHAT_ID']
 
-    # 登录到QQ邮箱
-    mail = imaplib.IMAP4_SSL('imap.qq.com')
-    mail.login(EMAIL_USER, EMAIL_PASSWORD)
-    mail.select('inbox')
+# 保存发送记录文件
+sent_emails_file = 'sent_emails.json'
 
-    # 获取最近2天的日期
-    date_since = (datetime.datetime.now() - datetime.timedelta(days=2)).strftime("%d-%b-%Y")
-    result, data = mail.search(None, f'SINCE {date_since}')
+# 加载已发送的邮件记录
+def load_sent_emails():
+    if os.path.exists(sent_emails_file):
+        with open(sent_emails_file, 'r') as f:
+            return json.load(f)
+    return []
 
-    email_ids = data[0].split()
-    new_messages = []
-    new_email_ids = []
+# 保存已发送的邮件记录
+def save_sent_emails(sent_emails):
+    with open(sent_emails_file, 'w') as f:
+        json.dump(sent_emails, f)
 
-    for email_id in email_ids:
-        if email_id.decode() not in sent_email_ids:
-            result, msg_data = mail.fetch(email_id, '(RFC822)')
-            message_body = msg_data[0][1].decode('utf-8')
-            cleaned_message = clean_message(message_body)
-            new_messages.append(cleaned_message)
-            new_email_ids.append(email_id.decode())
+# 发送消息到 Telegram，增加1秒延迟
+def send_message(text):
+    try:
+        time.sleep(1)  # 增加1秒延迟
+        requests.post(f'https://api.telegram.org/bot{TELEGRAM_API_KEY}/sendMessage',
+                      data={'chat_id': TELEGRAM_CHAT_ID, 'text': text, 'parse_mode': 'Markdown'})
+    except Exception as e:
+        print(f"Error sending message to Telegram: {e}")
 
-    mail.logout()
+# 解码邮件头
+def decode_header(header):
+    decoded_fragments = email.header.decode_header(header)
+    return ''.join(
+        str(fragment, encoding or 'utf-8') if isinstance(fragment, bytes) else fragment
+        for fragment, encoding in decoded_fragments
+    )
 
-    # 将新邮件内容发送到Telegram
-    bot = Bot(token=TELEGRAM_API_KEY)
-    if new_messages:
-        # 创建消息文本
-        message_text = f"最近2天的新邮件：\n\n" + "\n\n".join(new_messages)
-        
-        # 拆分消息
-        for i in range(0, len(message_text), MAX_MESSAGE_LENGTH):
-            await bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message_text[i:i + MAX_MESSAGE_LENGTH])
+# 清理邮件内容并转换为 Markdown 格式
+def clean_email_body(body):
+    # 替换 HTML 标签为 Markdown 格式
+    body = re.sub(r'<b>(.*?)</b>', r'**\1**', body)  # 粗体
+    body = re.sub(r'<i>(.*?)</i>', r'_\1_', body)    # 斜体
+    body = re.sub(r'<u>(.*?)</u>', r'__\1__', body)  # 下划线
 
-        # 保存已发送的邮件ID
-        save_sent_email_ids(SENT_EMAILS_FILE, new_email_ids)
+    # 去除其他 HTML 标签
+    body = re.sub(r'<.*?>', '', body)
+    body = re.sub(r'&.*?;', '', body)  # 去除 HTML 实体
+    body = ' '.join(body.split())  # 去除多余空格
+    return body
+
+# 获取邮件内容并解决乱码问题
+def get_email_body(msg):
+    body = ""
+    if msg.is_multipart():
+        for part in msg.walk():
+            if part.get_content_type() == 'text/plain':
+                charset = part.get_content_charset()
+                body = part.get_payload(decode=True).decode(charset or 'utf-8', errors='ignore')
+                break
     else:
-        print("最近2天没有新邮件。")
+        charset = msg.get_content_charset()
+        body = msg.get_payload(decode=True).decode(charset or 'utf-8', errors='ignore')
+    return clean_email_body(body)
 
-def clean_message(message):
-    # 删除所有 HTML 标签
-    clean_text = re.sub(r'<.*?>', '', message)  # 删除 HTML 标签
-    return clean_text
+# 获取并处理邮件
+def fetch_emails():
+    keywords = ['接收', '信用卡', 'google', 'Azure', 'cloudflare', 'Microsoft', '账户', '账单']
+    sent_emails = load_sent_emails()
+    
+    try:
+        mail = imaplib.IMAP4_SSL(imap_server)
+        mail.login(email_user, email_password)
+        mail.select('inbox')
 
-def load_sent_email_ids(file_path):
-    if os.path.exists(file_path):
-        with open(file_path, 'r') as f:
-            return set(f.read().splitlines())
-    return set()
+        status, messages = mail.search(None, 'ALL')
+        email_ids = messages[0].split()
 
-def save_sent_email_ids(file_path, email_ids):
-    with open(file_path, 'w') as f:
         for email_id in email_ids:
-            f.write(f"{email_id}\n")
+            _, msg_data = mail.fetch(email_id, '(RFC822)')
+            msg = email.message_from_bytes(msg_data[0][1])
+            
+            subject = decode_header(msg['subject'])
+            sender = decode_header(msg['from'])
+            body = get_email_body(msg)
 
-if __name__ == "__main__":
-    asyncio.run(scan_emails_and_notify())
+            # 检查邮件ID是否已经发送过
+            if subject in sent_emails:
+                continue
+
+            # 发送消息，使用 Markdown 格式
+            message = f'''
+**发件人**: {sender}  
+**主题**: {subject}  
+**内容**:  
+{body}
+'''
+            send_message(message)
+            
+            # 记录发送的邮件
+            sent_emails.append(subject)
+
+    except Exception as e:
+        print(f"Error fetching emails: {e}")
+    finally:
+        mail.logout()
+        save_sent_emails(sent_emails)
+
+if __name__ == '__main__':
+    fetch_emails()
