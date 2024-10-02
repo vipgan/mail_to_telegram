@@ -58,16 +58,30 @@ def clean_email_body(body):
     # 去除其他 HTML 标签
     body = re.sub(r'<.*?>', '', body)
     body = re.sub(r'&.*?;', '', body)  # 去除 HTML 实体
-     # 删除空行
+    # 删除空行
     body = re.sub(r'\n\s*\n', '\n', body)  # 替换多个换行符为一个换行符
     return body
+
+# 获取邮件内容并解决乱码问题
+def get_email_body(msg):
+    body = ""
+    if msg.is_multipart():
+        for part in msg.walk():
+            if part.get_content_type() == 'text/plain':
+                charset = part.get_content_charset()
+                body = part.get_payload(decode=True).decode(charset or 'utf-8', errors='ignore')
+                break
+    else:
+        charset = msg.get_content_charset()
+        body = msg.get_payload(decode=True).decode(charset or 'utf-8', errors='ignore')
+    return clean_email_body(body)
 
 # 获取并处理邮件
 def fetch_emails():
     keywords = ['接收', '信用卡', 'google', 'Azure', 'cloudflare', 'Microsoft', '账户', '账单']
     sent_emails = load_sent_emails()
     
-    # 计算两天前的日期
+        # 计算两天前的日期
     two_days_ago = datetime.now() - timedelta(days=2)
     date_string = two_days_ago.strftime('%d-%b-%Y')
 
@@ -76,8 +90,7 @@ def fetch_emails():
         mail.login(email_user, email_password)
         mail.select('inbox')
 
-        # 使用日期限制搜索邮件
-        status, messages = mail.search(None, f'SINCE {date_string}')
+        status, messages = mail.search(None, 'ALL')
         email_ids = messages[0].split()
 
         for email_id in email_ids:
@@ -92,13 +105,14 @@ def fetch_emails():
             if subject in sent_emails:
                 continue
 
-            # 发送消息，使用 JSON 格式
-            message = {
-                "发件人": sender,
-                "主题": subject,
-                "内容": body
-            }
-            send_message(json.dumps(message, ensure_ascii=False, indent=2))  # 转换为 JSON 格式并发送
+            # 发送消息，使用 Markdown 格式
+            message = f'''
+**发件人**: {sender}  
+**主题**: {subject}  
+**内容**:  
+{body}
+'''
+            send_message(message)
             
             # 记录发送的邮件
             sent_emails.append(subject)
@@ -108,3 +122,6 @@ def fetch_emails():
     finally:
         mail.logout()
         save_sent_emails(sent_emails)
+
+if __name__ == '__main__':
+    fetch_emails()
