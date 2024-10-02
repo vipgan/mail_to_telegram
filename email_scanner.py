@@ -10,6 +10,7 @@ async def scan_emails_and_notify():
     TELEGRAM_API_KEY = os.getenv('TELEGRAM_API_KEY')
     TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
     SENT_EMAILS_FILE = 'sent_emails.txt'
+    MAX_MESSAGE_LENGTH = 4096  # Telegram 消息最大长度
 
     # 加载已发送邮件的ID
     sent_email_ids = load_sent_email_ids(SENT_EMAILS_FILE)
@@ -38,8 +39,12 @@ async def scan_emails_and_notify():
     # 将新邮件内容发送到Telegram
     bot = Bot(token=TELEGRAM_API_KEY)
     if new_messages:
+        # 创建消息文本
         message_text = f"最近3天的新邮件：\n\n" + "\n\n".join([msg.decode('utf-8') for msg in new_messages])
-        await bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message_text)
+        
+        # 拆分消息
+        for i in range(0, len(message_text), MAX_MESSAGE_LENGTH):
+            await bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message_text[i:i + MAX_MESSAGE_LENGTH])
 
         # 保存已发送的邮件ID
         save_sent_email_ids(SENT_EMAILS_FILE, new_email_ids)
