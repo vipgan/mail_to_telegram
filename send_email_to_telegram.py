@@ -30,12 +30,13 @@ def save_sent_emails(sent_emails):
     with open(sent_emails_file, 'w') as f:
         json.dump(sent_emails, f)
 
-# 发送消息到 Telegram，增加1秒延迟
+# 发送消息到 Telegram
 def send_message(text):
     try:
         time.sleep(1)  # 增加1秒延迟
-        requests.post(f'https://api.telegram.org/bot{TELEGRAM_API_KEY}/sendMessage',
-                      data={'chat_id': TELEGRAM_CHAT_ID, 'text': text, 'parse_mode': 'Markdown'})
+        response = requests.post(f'https://api.telegram.org/bot{TELEGRAM_API_KEY}/sendMessage',
+                      data={'chat_id': TELEGRAM_CHAT_ID, 'text': text, 'parse_mode': 'MarkdownV2'})
+        response.raise_for_status()
     except Exception as e:
         print(f"Error sending message to Telegram: {e}")
 
@@ -47,17 +48,20 @@ def decode_header(header):
         for fragment, encoding in decoded_fragments
     )
 
-# 清理邮件内容并转换为 Markdown 格式
+# 清理邮件内容并转换为 MarkdownV2 格式
 def clean_email_body(body):
-    # 替换 HTML 标签为 Markdown 格式
-    body = re.sub(r'<b>(.*?)</b>', r'**\1**', body)  # 粗体
-    body = re.sub(r'<i>(.*?)</i>', r'_\1_', body)    # 斜体
+    # 替换 HTML 标签为 MarkdownV2 格式
+    body = re.sub(r'<b>(.*?)</b>', r'*\1*', body)  # 粗体
+    body = re.sub(r'<i>(.*?)</i>', r'_\1_', body)  # 斜体
     body = re.sub(r'<u>(.*?)</u>', r'__\1__', body)  # 下划线
+    body = re.sub(r'<.*?>', '', body)  # 移除其他 HTML 标签
+    body = re.sub(r'&.*?;', '', body)  # 移除 HTML 实体
+    body = re.sub(r'([_*[\]()~`>#+\-=|{}.!])', r'\\\1', body)  # 转义 MarkdownV2 特殊字符
 
-    # 去除其他 HTML 标签
-    body = re.sub(r'<.*?>', '', body)
-    body = re.sub(r'&.*?;', '', body)  # 去除 HTML 实体
-    body = ' '.join(body.split())  # 去除多余空格
+    # 保留原始换行和多余空格
+    lines = body.splitlines()  # 按行拆分
+    cleaned_lines = [line.strip() for line in lines]  # 去除每行两端的多余空白
+    body = '\n'.join(cleaned_lines)  # 保留行间的换行
     return body
 
 # 获取邮件内容并解决乱码问题
@@ -95,20 +99,20 @@ def fetch_emails():
             sender = decode_header(msg['from'])
             body = get_email_body(msg)
 
-            # 检查邮件ID是否已经发送过
+            # 检查邮件是否已经发送过
             if subject in sent_emails:
                 continue
 
-            # 发送消息，使用 Markdown 格式
+            # 发送消息到 Telegram，使用 MarkdownV2 格式
             message = f'''
-**发件人**: {sender}  
-**主题**: {subject}  
-**内容**:  
+*发件人*: {sender}  
+*主题*: {subject}  
+*内容*:  
 {body}
 '''
             send_message(message)
             
-            # 记录发送的邮件
+            # 记录已发送的邮件
             sent_emails.append(subject)
 
     except Exception as e:
