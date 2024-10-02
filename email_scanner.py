@@ -55,11 +55,9 @@ async def scan_emails_and_notify():
         print("最近2天没有新邮件。")
 
 def clean_message(message):
-    # 删除图片和视频的链接
-    message = re.sub(r'<img.*?src="(.*?)".*?>', '', message)  # 删除图片
-    message = re.sub(r'<video.*?src="(.*?)".*?>', '', message)  # 删除视频
-    # 进一步处理：可以添加 HTML、CSS、JS 语法高亮或格式化等
-    return message
+    # 删除所有 HTML 标签
+    clean_text = re.sub(r'<.*?>', '', message)  # 删除 HTML 标签
+    return clean_text
 
 def load_sent_email_ids(file_path):
     if os.path.exists(file_path):
