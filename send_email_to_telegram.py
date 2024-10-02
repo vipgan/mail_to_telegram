@@ -69,6 +69,7 @@ def get_email_body(msg):
     # 去除 HTML 标签
     body = re.sub(r'<.*?>', '', body)  # 去除 HTML 标签
     body = re.sub(r'\n+', '\n', body)  # 去除多余换行
+    body = re.sub(r'^\s*$', '', body, flags=re.MULTILINE)  # 去除空行
     body = body.strip()  # 去除首尾空白
     return body
 
