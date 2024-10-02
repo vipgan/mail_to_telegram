@@ -2,6 +2,7 @@ import os
 import imaplib
 import datetime
 import asyncio
+import re
 from telegram import Bot
 
 async def scan_emails_and_notify():
@@ -20,8 +21,8 @@ async def scan_emails_and_notify():
     mail.login(EMAIL_USER, EMAIL_PASSWORD)
     mail.select('inbox')
 
-    # 获取最近3天的日期
-    date_since = (datetime.datetime.now() - datetime.timedelta(days=3)).strftime("%d-%b-%Y")
+    # 获取最近2天的日期
+    date_since = (datetime.datetime.now() - datetime.timedelta(days=2)).strftime("%d-%b-%Y")
     result, data = mail.search(None, f'SINCE {date_since}')
 
     email_ids = data[0].split()
@@ -31,7 +32,9 @@ async def scan_emails_and_notify():
     for email_id in email_ids:
         if email_id.decode() not in sent_email_ids:
             result, msg_data = mail.fetch(email_id, '(RFC822)')
-            new_messages.append(msg_data[0][1])
+            message_body = msg_data[0][1].decode('utf-8')
+            cleaned_message = clean_message(message_body)
+            new_messages.append(cleaned_message)
             new_email_ids.append(email_id.decode())
 
     mail.logout()
@@ -40,7 +43,7 @@ async def scan_emails_and_notify():
     bot = Bot(token=TELEGRAM_API_KEY)
     if new_messages:
         # 创建消息文本
-        message_text = f"最近3天的新邮件：\n\n" + "\n\n".join([msg.decode('utf-8') for msg in new_messages])
+        message_text = f"最近2天的新邮件：\n\n" + "\n\n".join(new_messages)
         
         # 拆分消息
         for i in range(0, len(message_text), MAX_MESSAGE_LENGTH):
@@ -49,7 +52,14 @@ async def scan_emails_and_notify():
         # 保存已发送的邮件ID
         save_sent_email_ids(SENT_EMAILS_FILE, new_email_ids)
     else:
-        print("最近3天没有新邮件。")
+        print("最近2天没有新邮件。")
+
+def clean_message(message):
+    # 删除图片和视频的链接
+    message = re.sub(r'<img.*?src="(.*?)".*?>', '', message)  # 删除图片
+    message = re.sub(r'<video.*?src="(.*?)".*?>', '', message)  # 删除视频
+    # 进一步处理：可以添加 HTML、CSS、JS 语法高亮或格式化等
+    return message
 
 def load_sent_email_ids(file_path):
     if os.path.exists(file_path):
