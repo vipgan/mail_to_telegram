@@ -5,6 +5,7 @@ import os
 import json
 import time
 import re
+import html
 
 # 设置邮箱信息
 email_user = os.environ['EMAIL_USER']
@@ -42,7 +43,6 @@ def send_message(text):
         response.raise_for_status()
     except Exception as e:
         print(f"Error sending message to Telegram: {e}")
-        print(f"Failed message content: {text}")
 
 # 解码邮件头
 def decode_header(header):
@@ -52,17 +52,24 @@ def decode_header(header):
         for fragment, encoding in decoded_fragments
     )
 
-# 清理邮件内容并转换为 HTML 格式
+# 清理邮件内容并支持图片、视频格式化
 def clean_email_body(body):
     # 替换 HTML 标签为 Telegram 支持的 HTML 格式
     body = re.sub(r'<b>(.*?)</b>', r'<b>\1</b>', body)  # 粗体
     body = re.sub(r'<i>(.*?)</i>', r'<i>\1</i>', body)  # 斜体
     body = re.sub(r'<u>(.*?)</u>', r'<u>\1</u>', body)  # 下划线
-    body = re.sub(r'<.*?>', '', body)  # 移除无效的 HTML 标签
+
+    # 处理图片、视频的链接格式
+    body = re.sub(r'<img src="(.*?)".*?>', r'<a href="\1">[图片]</a>', body)  # 图片
+    body = re.sub(r'<video.*?src="(.*?)".*?>.*?</video>', r'<a href="\1">[视频]</a>', body)  # 视频
+
+    # 移除其他无效的 HTML 标签
+    body = re.sub(r'<.*?>', '', body)  
     body = re.sub(r'&.*?;', '', body)  # 移除 HTML 实体
 
+    # 处理行和空白字符
     lines = body.splitlines()  # 按行拆分
-    cleaned_lines = [line.strip() for line in lines]  # 去除每行两端的多余空白
+    cleaned_lines = [html.escape(line.strip()) for line in lines]  # 转义特殊字符并去除空白
     body = '\n'.join(cleaned_lines)  # 保留行间的换行
     return body
 
