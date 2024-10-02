@@ -4,8 +4,6 @@ import requests
 import os
 import json
 import time
-import re
-import html
 
 # 设置邮箱信息
 email_user = os.environ['EMAIL_USER']
@@ -32,7 +30,7 @@ def save_sent_emails(sent_emails):
     with open(sent_emails_file, 'w') as f:
         json.dump(sent_emails, f)
 
-# 发送消息到 Telegram，并添加调试输出
+# 发送消息到 Telegram
 def send_message(text):
     try:
         time.sleep(1)  # 增加1秒延迟
@@ -40,7 +38,7 @@ def send_message(text):
             text = text[:MAX_MESSAGE_LENGTH]  # 截断消息
         print(f"发送的消息内容: {text}")  # 打印要发送的消息内容
         response = requests.post(f'https://api.telegram.org/bot{TELEGRAM_API_KEY}/sendMessage',
-                                 data={'chat_id': TELEGRAM_CHAT_ID, 'text': text})  # 暂时移除 'parse_mode': 'HTML'
+                                 data={'chat_id': TELEGRAM_CHAT_ID, 'text': text})  # 发送纯文本
         response.raise_for_status()
     except Exception as e:
         print(f"Error sending message to Telegram: {e}")
@@ -54,28 +52,7 @@ def decode_header(header):
         for fragment, encoding in decoded_fragments
     )
 
-# 清理邮件内容并支持图片、视频格式化
-def clean_email_body(body):
-    # 替换 HTML 标签为 Telegram 支持的 HTML 格式
-    body = re.sub(r'<b>(.*?)</b>', r'<b>\1</b>', body)  # 粗体
-    body = re.sub(r'<i>(.*?)</i>', r'<i>\1</i>', body)  # 斜体
-    body = re.sub(r'<u>(.*?)</u>', r'<u>\1</u>', body)  # 下划线
-
-    # 处理图片、视频的链接格式
-    body = re.sub(r'<img src="(.*?)".*?>', r'<a href="\1">[图片]</a>', body)  # 图片
-    body = re.sub(r'<video.*?src="(.*?)".*?>.*?</video>', r'<a href="\1">[视频]</a>', body)  # 视频
-
-    # 移除其他无效的 HTML 标签
-    body = re.sub(r'<.*?>', '', body)  
-    body = re.sub(r'&.*?;', '', body)  # 移除 HTML 实体
-
-    # 处理行和空白字符
-    lines = body.splitlines()  # 按行拆分
-    cleaned_lines = [html.escape(line.strip()) for line in lines]  # 转义特殊字符并去除空白
-    body = '\n'.join(cleaned_lines)  # 保留行间的换行
-    return body
-
-# 获取邮件内容并解决乱码问题
+# 获取邮件内容并清除所有 HTML、CSS、JS 代码
 def get_email_body(msg):
     body = ""
     if msg.is_multipart():
@@ -87,7 +64,9 @@ def get_email_body(msg):
     else:
         charset = msg.get_content_charset()
         body = msg.get_payload(decode=True).decode(charset or 'utf-8', errors='ignore')
-    return clean_email_body(body)
+
+    # 清除所有 HTML/CSS/JS 内容，仅保留文本
+    return body
 
 # 获取并处理邮件
 def fetch_emails():
@@ -113,7 +92,7 @@ def fetch_emails():
             if subject in sent_emails:
                 continue
 
-            # 发送消息到 Telegram，暂时移除 HTML 格式
+            # 发送消息到 Telegram
             message = f'''
 发件人: {sender}  
 主题: {subject}  
@@ -132,7 +111,4 @@ def fetch_emails():
         save_sent_emails(sent_emails)
 
 if __name__ == '__main__':
-    # 测试发送简单消息
-    send_message("<b>测试消息</b>")  # 简单消息测试，看看能否成功发送
-
     fetch_emails()  # 获取并发送邮件
