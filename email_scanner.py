@@ -1,20 +1,10 @@
 import os
 import imaplib
 import datetime
+import asyncio
 from telegram import Bot
 
-def load_sent_email_ids(file_path):
-    if os.path.exists(file_path):
-        with open(file_path, 'r') as f:
-            return set(f.read().splitlines())
-    return set()
-
-def save_sent_email_ids(file_path, email_ids):
-    with open(file_path, 'w') as f:  # 覆盖写入，确保只保留最新的邮件ID
-        for email_id in email_ids:
-            f.write(f"{email_id}\n")
-
-def scan_emails_and_notify():
+async def scan_emails_and_notify():
     EMAIL_USER = os.getenv('EMAIL_USER')
     EMAIL_PASSWORD = os.getenv('EMAIL_PASSWORD')
     TELEGRAM_API_KEY = os.getenv('TELEGRAM_API_KEY')
@@ -38,7 +28,7 @@ def scan_emails_and_notify():
     new_email_ids = []
 
     for email_id in email_ids:
-        if email_id not in sent_email_ids:
+        if email_id.decode() not in sent_email_ids:
             result, msg_data = mail.fetch(email_id, '(RFC822)')
             new_messages.append(msg_data[0][1])
             new_email_ids.append(email_id.decode())
@@ -49,12 +39,23 @@ def scan_emails_and_notify():
     bot = Bot(token=TELEGRAM_API_KEY)
     if new_messages:
         message_text = f"最近3天的新邮件：\n\n" + "\n\n".join([msg.decode('utf-8') for msg in new_messages])
-        bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message_text)
+        await bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message_text)
 
         # 保存已发送的邮件ID
         save_sent_email_ids(SENT_EMAILS_FILE, new_email_ids)
     else:
         print("最近3天没有新邮件。")
 
+def load_sent_email_ids(file_path):
+    if os.path.exists(file_path):
+        with open(file_path, 'r') as f:
+            return set(f.read().splitlines())
+    return set()
+
+def save_sent_email_ids(file_path, email_ids):
+    with open(file_path, 'w') as f:
+        for email_id in email_ids:
+            f.write(f"{email_id}\n")
+
 if __name__ == "__main__":
-    scan_emails_and_notify()
+    asyncio.run(scan_emails_and_notify())
