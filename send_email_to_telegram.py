@@ -5,6 +5,7 @@ import os
 import json
 import time
 import re
+from datetime import datetime, timedelta
 
 # 设置邮箱信息
 email_user = os.environ['EMAIL_USER']
@@ -57,7 +58,6 @@ def clean_email_body(body):
     # 去除其他 HTML 标签
     body = re.sub(r'<.*?>', '', body)
     body = re.sub(r'&.*?;', '', body)  # 去除 HTML 实体
-    body = ' '.join(body.split())  # 去除多余空格
     return body
 
 # 获取邮件内容并解决乱码问题
@@ -79,6 +79,10 @@ def fetch_emails():
     keywords = ['接收', '信用卡', 'google', 'Azure', 'cloudflare', 'Microsoft', '账户', '账单']
     sent_emails = load_sent_emails()
     
+        # 计算两天前的日期
+    two_days_ago = datetime.now() - timedelta(days=2)
+    date_string = two_days_ago.strftime('%d-%b-%Y')
+
     try:
         mail = imaplib.IMAP4_SSL(imap_server)
         mail.login(email_user, email_password)
