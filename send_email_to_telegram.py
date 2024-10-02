@@ -53,25 +53,29 @@ def decode_header(header):
         for fragment, encoding in decoded_fragments
     )
 
-# 获取邮件内容并清除所有 HTML 代码
+# 获取邮件内容并清除所有 HTML、CSS、JS 和 Markdown 代码
 def get_email_body(msg):
     body = ""
     if msg.is_multipart():
         for part in msg.walk():
             if part.get_content_type() == 'text/plain':
                 charset = part.get_content_charset()
-                body = part.get_payload(decode=True).decode(charset or 'utf-8', errors='ignore')
+                body = part.get_payload(decode=True).decode(charset or 'utf-8')
                 break
     else:
         charset = msg.get_content_charset()
-        body = msg.get_payload(decode=True).decode(charset or 'utf-8', errors='ignore')
+        body = msg.get_payload(decode=True).decode(charset or 'utf-8')
 
-    # 去除 HTML 标签
+    # 去除 HTML 标签、CSS、JS 和 Markdown
     body = re.sub(r'<.*?>', '', body)  # 去除 HTML 标签
-    body = re.sub(r'\n+', '\n', body)  # 去除多余换行
-    body = re.sub(r'^\s*$', '', body, flags=re.MULTILINE)  # 去除空行
-    body = body.strip()  # 去除首尾空白
-    return body
+    body = re.sub(r'\s+', ' ', body)  # 将多个空白字符替换为单个空格
+    body = re.sub(r'^\s*|\s*$', '', body)  # 去除首尾空白
+    body = re.sub(r'<script.*?</script>', '', body, flags=re.DOTALL)  # 去除 <script> 标签及内容
+    body = re.sub(r'javascript:[^\'" >]*', '', body)  # 去除 JavaScript URL
+    body = re.sub(r'`{1,3}.*?`{1,3}', '', body)  # 去除代码块和行内代码
+    body = re.sub(r'[*_~#-]', '', body)  # 去除 Markdown 符号，如 *、_、~、#、- 等
+
+    return body.strip()
 
 # 获取并处理邮件
 def fetch_emails():
