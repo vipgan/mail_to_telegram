@@ -4,6 +4,7 @@ import requests
 import os
 import json
 import time
+import re
 
 # 设置邮箱信息
 email_user = os.environ['EMAIL_USER']
@@ -52,7 +53,7 @@ def decode_header(header):
         for fragment, encoding in decoded_fragments
     )
 
-# 获取邮件内容并清除所有 HTML、CSS、JS 代码
+# 获取邮件内容并清除所有 HTML 代码
 def get_email_body(msg):
     body = ""
     if msg.is_multipart():
@@ -65,7 +66,10 @@ def get_email_body(msg):
         charset = msg.get_content_charset()
         body = msg.get_payload(decode=True).decode(charset or 'utf-8', errors='ignore')
 
-    # 清除所有 HTML/CSS/JS 内容，仅保留文本
+    # 去除 HTML 标签
+    body = re.sub(r'<.*?>', '', body)  # 去除 HTML 标签
+    body = re.sub(r'\n+', '\n', body)  # 去除多余换行
+    body = body.strip()  # 去除首尾空白
     return body
 
 # 获取并处理邮件
