@@ -38,7 +38,7 @@ def send_message(text):
     try:
         time.sleep(3)  # 增加1秒延迟
         requests.post(f'https://api.telegram.org/bot{TELEGRAM_API_KEY}/sendMessage',
-                      data={'chat_id': TELEGRAM_CHAT_ID, 'text': text, 'parse_mode': 'Markdown'})
+                      data={'chat_id': TELEGRAM_CHAT_ID, 'text': text, 'parse_mode': 'MarkdownV2'})
     except Exception as e:
         print(f"Error sending message to Telegram: {e}")
 
@@ -54,6 +54,13 @@ def decode_header(header):
 def clean_subject(subject):
     return re.sub(r'[\[\]<>{}]', '', subject)
 
+# 转义 Markdown V2 特殊字符
+def escape_markdown(text):
+    escape_chars = ['_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!']
+    for char in escape_chars:
+        text = text.replace(char, f'\\{char}')
+    return text
+
 # 获取邮件内容并转换为 Markdown 格式
 def get_email_body(msg):
     body = ""
@@ -68,7 +75,8 @@ def get_email_body(msg):
         body = msg.get_payload(decode=True).decode(charset or 'utf-8', errors='ignore')
 
     # 使用 BeautifulSoup 解析 HTML 并转换为 Markdown
-    return md(body)
+    markdown_body = md(body)
+    return escape_markdown(markdown_body)
 
 # 获取邮件原始时间
 def get_email_date(msg):
@@ -97,8 +105,8 @@ def fetch_emails():
                 _, msg_data = mail.fetch(email_id, '(RFC822)')
                 msg = email.message_from_bytes(msg_data[0][1])
                 
-                subject = clean_subject(decode_header(msg['subject']))
-                sender = decode_header(msg['from'])
+                subject = escape_markdown(clean_subject(decode_header(msg['subject'])))
+                sender = escape_markdown(decode_header(msg['from']))
                 body = get_email_body(msg)
                 email_date = get_email_date(msg)
 
@@ -106,7 +114,7 @@ def fetch_emails():
                 if subject in sent_emails:
                     continue
 
-                # 发送消息，使用 Markdown 格式
+                # 发送消息，使用 Markdown V2 格式
                 message = f'''
 *主题*: {subject}
 *发件人*: {sender}  
