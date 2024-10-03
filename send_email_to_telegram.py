@@ -24,14 +24,14 @@ TELEGRAM_CHAT_ID = os.environ['TELEGRAM_CHAT_ID']
 # 保存发送记录文件
 sent_emails_file = 'sent_emails.json'
 
-# 加载已发送的邮件记录
+# 加载已发送的邮件记录（使用 email_id）
 def load_sent_emails():
     if os.path.exists(sent_emails_file):
         with open(sent_emails_file, 'r') as f:
             return json.load(f)
     return []
 
-# 保存已发送的邮件记录
+# 保存已发送的邮件记录（使用 email_id）
 def save_sent_emails(sent_emails):
     with open(sent_emails_file, 'w') as f:
         json.dump(sent_emails, f)
@@ -57,6 +57,15 @@ def decode_header(header):
 def clean_email_body(body):
     # 使用 BeautifulSoup 清理 HTML
     soup = BeautifulSoup(body, 'html.parser')
+
+    # 移除图片、地址和语言代码
+    for img in soup.find_all('img'):
+        img.decompose()
+    for a in soup.find_all('a'):
+        a.unwrap()
+    for tag in soup.find_all(True):
+        tag.attrs = {}
+
     text = soup.get_text()
 
     # 清理多余的空行和空白
@@ -82,10 +91,6 @@ def get_email_body(msg):
 def fetch_emails():
     sent_emails = load_sent_emails()
     
-    # 获取当前时间
-    now = datetime.now()
-    two_days_ago = now - timedelta(days=2)
-    
     try:
         mail = imaplib.IMAP4_SSL(imap_server)
         mail.login(email_user, email_password)
@@ -96,6 +101,9 @@ def fetch_emails():
         email_ids = messages[0].split()
 
         for email_id in email_ids:
+            if email_id.decode() in sent_emails:
+                continue  # 如果已经发送，跳过此邮件
+
             _, msg_data = mail.fetch(email_id, '(RFC822)')
             msg = email.message_from_bytes(msg_data[0][1])
             
@@ -104,10 +112,10 @@ def fetch_emails():
             date_str = msg['date']
             body = get_email_body(msg)
 
-            # 发送消息，使用 Markdown 格式
+            # 发送消息，使用 Markdown 格式，发件人放在主题后面
             message = f'''
-*发件人*: {sender}  
 *主题*: {subject}  
+*发件人*: {sender}  
 *时间*: {date_str}  
 *内容*:  
 {body}
@@ -115,7 +123,10 @@ def fetch_emails():
             send_message(message)
             
             # 记录发送的邮件
-            sent_emails.append(subject)
+            sent_emails.append(email_id.decode())  # 使用 email_id 作为唯一标识
+
+            # 将邮件标记为已读
+            mail.store(email_id, '+FLAGS', '\\Seen')
 
     except Exception as e:
         logging.error(f"Error fetching emails: {e}")
