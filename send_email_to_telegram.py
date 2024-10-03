@@ -1,6 +1,5 @@
 import imaplib
 import email
-import requests
 import os
 import json
 import time
@@ -56,6 +55,10 @@ def clean_email_body(body):
     body = ' '.join(body.split())  # 去除多余空格
     return body
 
+# 过滤特殊字符
+def sanitize_string(s):
+    return ''.join(char for char in s if char.isprintable())
+
 # 获取邮件内容并解决乱码问题
 def get_email_body(msg):
     body = ""
@@ -91,18 +94,18 @@ async def fetch_emails():
             _, msg_data = mail.fetch(email_id, '(RFC822)')
             msg = email.message_from_bytes(msg_data[0][1])
             
-            subject = decode_header(msg['subject'])
-            sender = decode_header(msg['from'])
+            subject = sanitize_string(decode_header(msg['subject']))
+            sender = sanitize_string(decode_header(msg['from']))
             body = get_email_body(msg)
 
             # 获取邮件时间
-            date = decode_header(msg['date'])
+            date = sanitize_string(decode_header(msg['date']))
 
             # 检查邮件ID是否已经发送过
             if subject in sent_emails:
                 continue
 
-            # 发送消息，使用 HTML 格式
+            # 限制消息长度
             message = f'''
 <b>New mail</b>
 <b>发件人</b>: {sender}<br>
@@ -110,6 +113,9 @@ async def fetch_emails():
 <b>主题</b>: {subject}<br>
 <b>内容</b>: <pre>{body}</pre>
 '''
+            if len(message) > 4096:  # Telegram 消息最大长度限制
+                message = message[:4096]
+
             await send_message(message)
             
             # 记录发送的邮件
