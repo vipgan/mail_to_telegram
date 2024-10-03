@@ -6,7 +6,7 @@ import json
 import time
 from datetime import datetime, timedelta
 from telegram import Bot
-import html2text  # 新增依赖
+import asyncio
 
 # 设置邮箱信息
 email_user = os.environ['EMAIL_USER']
@@ -36,11 +36,11 @@ def save_sent_emails(sent_emails):
         json.dump(list(sent_emails), f)
 
 # 发送消息到 Telegram，增加1秒延迟
-def send_message(text):
+async def send_message(text):
     try:
-        time.sleep(1)  # 增加1秒延迟
-        response = bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=text, parse_mode='HTML')  # 使用 HTML 格式
-        print(f"Message sent: {response.text}")  # 日志记录发送的信息
+        await asyncio.sleep(1)  # 增加1秒延迟
+        response = await bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=text, parse_mode='HTML')  # 使用 HTML 格式
+        print(f"Message sent: {response}")  # 日志记录发送的信息
     except Exception as e:
         print(f"Error sending message to Telegram: {e}")
 
@@ -76,7 +76,7 @@ def get_email_body(msg):
     return clean_email_body(body)
 
 # 获取并处理邮件
-def fetch_emails():
+async def fetch_emails():
     sent_emails = load_sent_emails()
 
     # 计算最近2天的日期
@@ -109,7 +109,7 @@ def fetch_emails():
 <b>主题</b>: {subject}<br>
 <b>内容</b>: <br>{body}
 '''
-            send_message(message)
+            await send_message(message)
             
             # 记录发送的邮件
             sent_emails.add(subject)
@@ -121,4 +121,4 @@ def fetch_emails():
         save_sent_emails(sent_emails)
 
 if __name__ == '__main__':
-    fetch_emails()
+    asyncio.run(fetch_emails())
