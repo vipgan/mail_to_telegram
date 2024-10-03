@@ -36,9 +36,12 @@ def save_sent_emails(sent_emails):
     with open(sent_emails_file, 'w') as f:
         json.dump(sent_emails, f)
 
-# 发送消息到 Telegram，增加1秒延迟
+# 发送消息到 Telegram，增加1秒延迟并清除多余换行符
 def send_message(text):
     try:
+        # 清理 Markdown 中的连续换行符（最多允许1个换行）
+        text = re.sub(r'\n{2,}', '\n', text)  # 替换多个连续的换行符为一个
+        
         time.sleep(1)  # 增加1秒延迟
         requests.post(f'https://api.telegram.org/bot{TELEGRAM_API_KEY}/sendMessage',
                       data={'chat_id': TELEGRAM_CHAT_ID, 'text': text, 'parse_mode': 'Markdown'})
@@ -58,20 +61,26 @@ def clean_email_body(body):
     # 使用 BeautifulSoup 清理 HTML
     soup = BeautifulSoup(body, 'html.parser')
 
-    # 移除图片、地址和语言代码
+    # 移除图片标签 <img> 和包含图片链接的 <a> 标签
     for img in soup.find_all('img'):
-        img.decompose()
+        img.decompose()  # 移除图片标签
     for a in soup.find_all('a'):
-        a.unwrap()
-    for tag in soup.find_all(True):
-        tag.attrs = {}
+        if any(ext in a['href'] for ext in ['.jpg', '.jpeg', '.png', '.gif', '.bmp']):  # 检查链接是否是图片
+            a.decompose()  # 移除图片链接
+        else:
+            a.unwrap()  # 保留其他普通链接
 
     text = soup.get_text()
 
-    # 清理多余的空行和空白
-    text = re.sub(r'\n\s*\n+', '\n', text)  # 替换多个换行符为一个换行符
-    text = re.sub(r'^\s*$', '', text, flags=re.MULTILINE)  # 清除空行
-    return text.strip()  # 去除首尾空白
+    # 清理多余的空行和空白字符
+    text = re.sub(r'\s+', ' ', text)  # 将连续的空白字符（包括换行符）替换为单个空格
+    text = re.sub(r'\n+', '\n', text)  # 清理多余的换行符
+    text = re.sub(r'^\s+$', '', text, flags=re.MULTILINE)  # 删除每行的空白行
+
+    # 按行处理，移除只包含空白或特殊字符的行
+    lines = text.split('\n')
+    cleaned_lines = [line.strip() for line in lines if line.strip()]  # 去掉空白行
+    return '\n'.join(cleaned_lines).strip()  # 去除首尾空白并合并为字符串
 
 # 获取邮件内容并解决乱码问题
 def get_email_body(msg):
