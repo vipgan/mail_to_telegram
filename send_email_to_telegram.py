@@ -88,7 +88,8 @@ def fetch_emails():
         mail.login(email_user, email_password)
         mail.select('inbox')
 
-        status, messages = mail.search(None, 'ALL')
+        # 仅搜索未读邮件
+        status, messages = mail.search(None, 'UNSEEN')
         if status != 'OK':
             print("Error searching inbox.")
             return
@@ -96,30 +97,34 @@ def fetch_emails():
         email_ids = messages[0].split()
 
         for email_id in email_ids:
-            _, msg_data = mail.fetch(email_id, '(RFC822)')
-            msg = email.message_from_bytes(msg_data[0][1])
-            
-            subject = clean_subject(decode_header(msg['subject']))
-            sender = decode_header(msg['from'])
-            body = get_email_body(msg)
-            email_date = get_email_date(msg)
+            try:
+                _, msg_data = mail.fetch(email_id, '(RFC822)')
+                msg = email.message_from_bytes(msg_data[0][1])
+                
+                subject = clean_subject(decode_header(msg['subject']))
+                sender = decode_header(msg['from'])
+                body = get_email_body(msg)
+                email_date = get_email_date(msg)
 
-            # 检查邮件ID是否已经发送过
-            if subject in sent_emails:
-                continue
+                # 检查邮件ID是否已经发送过
+                if subject in sent_emails:
+                    continue
 
-            # 发送消息，使用 Markdown 格式
-            message = f'''
+                # 发送消息，使用 Markdown 格式
+                message = f'''
 *主题*: {subject}
 *发件人*: {sender}  
 *时间*: {email_date}  
 *内容*:  
 {body}
 '''
-            send_message(message)
-            
-            # 记录发送的邮件
-            sent_emails.append(subject)
+                send_message(message)
+                
+                # 记录发送的邮件
+                sent_emails.append(subject)
+
+            except Exception as e:
+                print(f"Error fetching email ID {email_id}: {e}")
 
     except Exception as e:
         print(f"Error fetching emails: {e}")
