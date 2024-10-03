@@ -110,7 +110,6 @@ def fetch_emails():
             current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             # 发送消息，使用 Markdown 格式
             message = f'''
-*New Mail*  
 *发件人*: {sender}  
 *主题*: {subject}  
 *时间*: {current_time}  
