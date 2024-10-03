@@ -6,6 +6,8 @@ import json
 import time
 import re
 from email.utils import parsedate_to_datetime
+from bs4 import BeautifulSoup
+from markdownify import markdownify as md
 
 # 设置邮箱信息
 email_user = os.environ['EMAIL_USER']
@@ -52,26 +54,21 @@ def decode_header(header):
 def clean_subject(subject):
     return re.sub(r'[\[\]<>{}]', '', subject)
 
-# 清理邮件内容，将连续空行替换为一个空行
-def clean_email_body(body):
-    body = re.sub(r'<.*?>', '', body)
-    body = re.sub(r'&.*?;', '', body)  # 去除 HTML 实体
-    body = re.sub(r'\n\s*\n+', '\n\n', body)  # 将连续空行替换为一个空行
-    return body
-
-# 获取邮件内容并解决乱码问题
+# 获取邮件内容并转换为 Markdown 格式
 def get_email_body(msg):
     body = ""
     if msg.is_multipart():
         for part in msg.walk():
-            if part.get_content_type() == 'text/plain':
+            if part.get_content_type() == 'text/html':
                 charset = part.get_content_charset()
                 body = part.get_payload(decode=True).decode(charset or 'utf-8', errors='ignore')
                 break
     else:
         charset = msg.get_content_charset()
         body = msg.get_payload(decode=True).decode(charset or 'utf-8', errors='ignore')
-    return clean_email_body(body)
+
+    # 使用 BeautifulSoup 解析 HTML 并转换为 Markdown
+    return md(body)
 
 # 获取邮件原始时间
 def get_email_date(msg):
@@ -80,7 +77,6 @@ def get_email_date(msg):
 
 # 获取并处理邮件
 def fetch_emails():
-    keywords = ['接收', '信用卡', 'google', 'Azure', 'cloudflare', 'Microsoft', '账户', '账单']
     sent_emails = load_sent_emails()
     
     try:
