@@ -26,13 +26,13 @@ sent_emails_file = 'sent_emails.json'
 def load_sent_emails():
     if os.path.exists(sent_emails_file):
         with open(sent_emails_file, 'r') as f:
-            return set(json.load(f))  # 使用集合提高查找效率
-    return set()
+            return json.load(f)  # 使用列表
+    return []
 
 # 保存已发送的邮件记录
 def save_sent_emails(sent_emails):
     with open(sent_emails_file, 'w') as f:
-        json.dump(list(sent_emails), f)
+        json.dump(sent_emails, f)
 
 # 发送消息到 Telegram，增加1秒延迟
 async def send_message(text):
@@ -95,6 +95,9 @@ async def fetch_emails():
             sender = decode_header(msg['from'])
             body = get_email_body(msg)
 
+            # 获取邮件时间
+            date = decode_header(msg['date'])
+
             # 检查邮件ID是否已经发送过
             if subject in sent_emails:
                 continue
@@ -103,13 +106,14 @@ async def fetch_emails():
             message = f'''
 <b>New mail</b><br>
 <b>发件人</b>: {sender}<br>
+<b>时间</b>: {date}<br>
 <b>主题</b>: {subject}<br>
 <b>内容</b>: <br>{body}
 '''
             await send_message(message)
             
             # 记录发送的邮件
-            sent_emails.add(subject)
+            sent_emails.append(subject)  # 改回使用列表
 
     except Exception as e:
         print(f"Error fetching emails: {e}")
