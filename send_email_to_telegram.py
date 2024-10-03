@@ -7,6 +7,7 @@ import time
 import logging
 from datetime import datetime
 from bs4 import BeautifulSoup
+from concurrent.futures import ThreadPoolExecutor
 
 # 设置日志
 logging.basicConfig(level=logging.INFO)
@@ -38,12 +39,15 @@ def save_sent_emails(sent_emails):
 # 发送消息到 Telegram
 def send_message(text):
     try:
+        # 检查文本长度
         if len(text) > 4096:
             logging.warning("Message too long, trimming...")
             text = text[:4096]
-            
+
+        # 打印发送的消息
         logging.info(f"Sending message: {text}")
-        time.sleep(1)
+
+        # 发送到 Telegram
         response = requests.post(f'https://api.telegram.org/bot{TELEGRAM_API_KEY}/sendMessage',
                                  data={'chat_id': TELEGRAM_CHAT_ID, 'text': text, 'parse_mode': 'Markdown'})
         response.raise_for_status()
@@ -64,17 +68,18 @@ def clean_email_body(body):
     
     # 清除特定标签
     for img in soup.find_all('img'):
-        img.decompose()  # 删除图片
+        img.decompose()
     for a in soup.find_all('a'):
-        a.decompose()  # 删除链接
+        a.decompose()
     for video in soup.find_all('video'):
-        video.decompose()  # 删除视频
+        video.decompose()
     for script in soup.find_all('script'):
-        script.decompose()  # 删除脚本
+        script.decompose()
     for style in soup.find_all('style'):
-        style.decompose()  # 删除样式
-    
-    text = soup.get_text()  # 获取纯文本
+        style.decompose()
+
+    text = soup.get_text()
+    # 去除空行
     lines = [line.strip() for line in text.splitlines() if line.strip()]
     return '\n'.join(lines)
 
@@ -92,6 +97,44 @@ def get_email_body(msg):
         body = msg.get_payload(decode=True).decode(charset or 'utf-8', errors='ignore')
     return clean_email_body(body)
 
+# 处理单封邮件
+def process_email(email_id, sent_emails):
+    try:
+        mail = imaplib.IMAP4_SSL(imap_server)
+        mail.login(email_user, email_password)
+        mail.select('inbox')
+        
+        _, msg_data = mail.fetch(email_id, '(RFC822)')
+        msg = email.message_from_bytes(msg_data[0][1])
+        
+        subject = decode_header(msg['subject'])
+        sender = decode_header(msg['from'])
+        body = get_email_body(msg)
+
+        # 获取原始邮件日期
+        original_time = email.utils.parsedate_to_datetime(msg['Date']).strftime('%Y-%m-%d %H:%M:%S')
+
+        # 检查邮件ID是否已经发送过
+        if subject in sent_emails:
+            return
+
+        # 发送消息，使用 Markdown 格式
+        message = f'''
+*发件人*: {sender}  
+*主题*: {subject}  
+*时间*: {original_time}  
+*内容*:  
+{body}
+'''
+        send_message(message)
+        sent_emails.append(subject)
+        logging.info(f"Message sent for subject: {subject}")
+
+    except Exception as e:
+        logging.error(f"Error processing email ID {email_id}: {e}")
+    finally:
+        mail.logout()
+
 # 获取并处理邮件
 def fetch_emails():
     sent_emails = load_sent_emails()
@@ -105,32 +148,10 @@ def fetch_emails():
         status, messages = mail.search(None, 'UNSEEN')
         email_ids = messages[0].split()
 
-        for email_id in email_ids:
-            _, msg_data = mail.fetch(email_id, '(RFC822)')
-            msg = email.message_from_bytes(msg_data[0][1])
-            
-            subject = decode_header(msg['subject'])
-            sender = decode_header(msg['from'])
-            body = get_email_body(msg)
-
-            # 获取原始邮件日期
-            original_time = email.utils.parsedate_to_datetime(msg['Date']).strftime('%Y-%m-%d %H:%M:%S')
-
-            # 检查邮件ID是否已经发送过
-            if subject in sent_emails:
-                continue
-
-            # 发送消息，使用 Markdown 格式
-            message = f'''
-*发件人*: {sender}  
-*主题*: {subject}  
-*时间*: {original_time}  
-*内容*:  
-{body}
-'''
-            send_message(message)
-            sent_emails.append(subject)
-            logging.info(f"Message sent for subject: {subject}")
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            # 使用多线程处理邮件
+            for email_id in email_ids:
+                executor.submit(process_email, email_id, sent_emails)
 
     except Exception as e:
         logging.error(f"Error fetching emails: {e}")
