@@ -5,6 +5,7 @@ import json
 import time
 from datetime import datetime
 from telegram import Bot
+from bs4 import BeautifulSoup
 
 # 设置邮箱信息
 email_user = os.environ['EMAIL_USER']
@@ -34,7 +35,7 @@ def save_sent_emails(sent_emails):
 # 发送消息到 Telegram
 def send_message(text):
     try:
-        bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=text, parse_mode='HTML')
+        bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=text, parse_mode='MarkdownV1')
         time.sleep(1)  # 增加1秒延迟
     except Exception as e:
         print(f"Error sending message to Telegram: {e}")
@@ -61,6 +62,11 @@ def get_email_body(msg):
         body = msg.get_payload(decode=True).decode(charset or 'utf-8', errors='ignore')
     return body
 
+# 去除 HTML 标签
+def strip_html(html):
+    soup = BeautifulSoup(html, 'html.parser')
+    return soup.get_text()
+
 # 获取并处理邮件
 def fetch_emails():
     sent_emails = load_sent_emails()
@@ -80,19 +86,20 @@ def fetch_emails():
             subject = decode_header(msg['subject'])
             sender = decode_header(msg['from'])
             body = get_email_body(msg)
+            body = strip_html(body)  # 去除 HTML 标签
 
             # 检查邮件ID是否已经发送过
             if subject in sent_emails:
                 continue
 
-            # 发送消息，使用 HTML 格式
+            # 发送消息，使用 Markdown V1 格式
             message = f"""
-<b>new mail</b><br>
-<b>发件人</b>: {sender}<br>
-<b>主题</b>: {subject}<br>
-<b>时间</b>: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}<br>
-<b>内容</b>:<br>
-<pre>{body}</pre>
+*new mail*
+*发件人*: {sender}
+*主题*: {subject}
+*时间*: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+*内容*:
+    {body}
 """
             send_message(message)
             
