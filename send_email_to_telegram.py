@@ -27,7 +27,7 @@ sent_emails_file = 'sent_emails.json'
 def load_sent_emails():
     if os.path.exists(sent_emails_file):
         with open(sent_emails_file, 'r') as f:
-            return json.load(f)  # 使用列表
+            return json.load(f)
     return []
 
 # 保存已发送的邮件记录
@@ -35,12 +35,12 @@ def save_sent_emails(sent_emails):
     with open(sent_emails_file, 'w') as f:
         json.dump(sent_emails, f)
 
-# 发送消息到 Telegram，增加1秒延迟
+# 发送消息到 Telegram
 async def send_message(text):
     try:
-        await asyncio.sleep(1)  # 增加1秒延迟
-        response = await bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=text, parse_mode='HTML')  # 使用 HTML 格式
-        print(f"Message sent: {response}")  # 日志记录发送的信息
+        await asyncio.sleep(1)
+        response = await bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=text, parse_mode='HTML')
+        print(f"Message sent: {response}")
     except Exception as e:
         print(f"Error sending message to Telegram: {e}")
 
@@ -54,8 +54,8 @@ def decode_header(header):
 
 # 清理邮件内容
 def clean_email_body(body):
-    body = ' '.join(body.split())  # 去除多余空格
-    return escape(body)  # 转义 HTML 特殊字符
+    body = ' '.join(body.split())
+    return escape(body)
 
 # 过滤特殊字符
 def sanitize_string(s):
@@ -69,22 +69,19 @@ def get_email_body(msg):
             for part in msg.walk():
                 content_type = part.get_content_type()
                 charset = part.get_content_charset()
-                if content_type == 'text/plain':
+                if content_type in ['text/plain', 'text/html']:
                     body = part.get_payload(decode=True).decode(charset or 'utf-8', errors='ignore')
-                    break
-                elif content_type == 'text/html':
-                    body = part.get_payload(decode=True).decode(charset or 'utf-8', errors='ignore')  # 保留 HTML 内容
                     break
         else:
             charset = msg.get_content_charset()
             body = msg.get_payload(decode=True).decode(charset or 'utf-8', errors='ignore')
         
         cleaned_body = clean_email_body(body)
-        return cleaned_body if isinstance(cleaned_body, str) else str(cleaned_body)  # 确保返回字符串
+        return cleaned_body if isinstance(cleaned_body, str) else str(cleaned_body)
 
     except Exception as e:
-        print(f"Error getting email body: {e}")  # 日志记录错误
-        return ""  # 返回空字符串以避免类型错误
+        print(f"Error getting email body: {e}")
+        return ""
 
 # 获取并处理邮件
 async def fetch_emails():
@@ -95,7 +92,6 @@ async def fetch_emails():
         mail.login(email_user, email_password)
         mail.select('inbox')
 
-        # 获取所有邮件
         status, messages = mail.search(None, 'ALL')
         email_ids = messages[0].split()
 
@@ -107,31 +103,24 @@ async def fetch_emails():
             sender = sanitize_string(decode_header(msg['from']))
             body = get_email_body(msg)
 
-            # 获取邮件时间
             date = sanitize_string(decode_header(msg['date']))
 
-            # 打印调试信息
             print(f"Processing email: ID={email_id}, Subject={subject}, Sender={sender}, Body Length={len(body)}")
 
-            # 检查邮件ID是否已经发送过
             if subject in sent_emails:
                 continue
 
-            # 限制消息长度
             message = f'''
 <b>New mail</b>
 <b>发件人</b>: {escape(sender)}<br>
 <b>时间</b>: {escape(date)}<br>
 <b>主题</b>: {escape(subject)}<br>
-<b>内容</b>: <pre>{escape(body)}</pre>
+<b>内容</b>: <pre>{escape(body[:1000])}</pre>  # 限制发送内容长度
 '''
-            if len(message) > 4096:  # Telegram 消息最大长度限制
-                message = message[:4096]
+            print(f"Message to send: {message}")  # 打印即将发送的消息
 
             await send_message(message)
-            
-            # 记录发送的邮件
-            sent_emails.append(subject)  # 改回使用列表
+            sent_emails.append(subject)
 
     except Exception as e:
         print(f"Error fetching emails: {e}")
