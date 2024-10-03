@@ -5,6 +5,7 @@ import os
 import json
 import time
 import re
+from email.utils import parsedate_to_datetime
 
 # 设置邮箱信息
 email_user = os.environ['EMAIL_USER']
@@ -47,11 +48,15 @@ def decode_header(header):
         for fragment, encoding in decoded_fragments
     )
 
-# 清理邮件内容并转换为 Markdown 格式
+# 清理邮件主题，去除标签符号
+def clean_subject(subject):
+    return re.sub(r'[\[\]<>{}]', '', subject)
+
+# 清理邮件内容，将连续空行替换为一个空行
 def clean_email_body(body):
-    # 去除其他 HTML 标签
     body = re.sub(r'<.*?>', '', body)
     body = re.sub(r'&.*?;', '', body)  # 去除 HTML 实体
+    body = re.sub(r'\n\s*\n+', '\n\n', body)  # 将连续空行替换为一个空行
     return body
 
 # 获取邮件内容并解决乱码问题
@@ -67,6 +72,11 @@ def get_email_body(msg):
         charset = msg.get_content_charset()
         body = msg.get_payload(decode=True).decode(charset or 'utf-8', errors='ignore')
     return clean_email_body(body)
+
+# 获取邮件原始时间
+def get_email_date(msg):
+    date_tuple = parsedate_to_datetime(msg['date'])
+    return date_tuple.strftime('%Y-%m-%d %H:%M:%S') if date_tuple else '未知时间'
 
 # 获取并处理邮件
 def fetch_emails():
@@ -85,9 +95,10 @@ def fetch_emails():
             _, msg_data = mail.fetch(email_id, '(RFC822)')
             msg = email.message_from_bytes(msg_data[0][1])
             
-            subject = decode_header(msg['subject'])
+            subject = clean_subject(decode_header(msg['subject']))
             sender = decode_header(msg['from'])
             body = get_email_body(msg)
+            email_date = get_email_date(msg)
 
             # 检查邮件ID是否已经发送过
             if subject in sent_emails:
@@ -97,6 +108,7 @@ def fetch_emails():
             message = f'''
 *主题*: {subject}
 *发件人*: {sender}  
+*时间*: {email_date}  
 *内容*:  
 {body}
 '''
