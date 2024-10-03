@@ -39,7 +39,7 @@ def save_sent_emails(sent_emails):
 def send_message(text):
     try:
         time.sleep(1)  # 增加1秒延迟
-        response = bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=text, parse_mode='Markdown')
+        response = bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=text, parse_mode='HTML')  # 使用 HTML 格式
         print(f"Message sent: {response.text}")  # 日志记录发送的信息
     except Exception as e:
         print(f"Error sending message to Telegram: {e}")
@@ -103,12 +103,11 @@ def fetch_emails():
             if subject in sent_emails:
                 continue
 
-            # 发送消息，使用 Markdown 格式
+            # 发送消息，使用 HTML 格式
             message = f'''
-**发件人**: {sender}  
-**主题**: {subject}  
-**内容**:  
-{body}
+<b>发件人</b>: {sender}<br>
+<b>主题</b>: {subject}<br>
+<b>内容</b>: <br>{body}
 '''
             send_message(message)
             
