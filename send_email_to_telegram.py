@@ -35,9 +35,21 @@ def save_sent_emails(sent_emails):
     with open(sent_emails_file, 'w') as f:
         json.dump(sent_emails, f)
 
+# 转义 Markdown 特殊字符
+def escape_markdown(text):
+    return text.replace('_', '\\_').replace('*', '\\*').replace('[', '\\[').replace(']', '\\]').replace('`', '\\`')
+
 # 发送消息到 Telegram
 def send_message(text):
     try:
+        # 确保文本长度不超过4096个字符
+        if len(text) > 4096:
+            logging.warning("Message too long, trimming...")
+            text = text[:4096]  # 只发送前4096个字符
+            
+        # 转义特殊字符
+        text = escape_markdown(text)
+
         time.sleep(1)
         response = requests.post(f'https://api.telegram.org/bot{TELEGRAM_API_KEY}/sendMessage',
                                  data={'chat_id': TELEGRAM_CHAT_ID, 'text': text, 'parse_mode': 'Markdown'})
@@ -77,15 +89,19 @@ def get_email_body(msg):
 
 # 获取并处理邮件
 def fetch_emails():
-    keywords = ['接收', '信用卡', 'google', 'Azure', 'cloudflare', 'Microsoft', '账户', '账单']
     sent_emails = load_sent_emails()
+
+    # 计算两天前的日期
+    two_days_ago = datetime.now() - timedelta(days=2)
+    date_string = two_days_ago.strftime('%d-%b-%Y')
 
     try:
         mail = imaplib.IMAP4_SSL(imap_server)
         mail.login(email_user, email_password)
         mail.select('inbox')
 
-        status, messages = mail.search(None, 'UNSEEN')
+        # 使用日期过滤，只获取最近两天的邮件
+        status, messages = mail.search(None, f'(SINCE "{date_string}")')
         email_ids = messages[0].split()
 
         for email_id in email_ids:
