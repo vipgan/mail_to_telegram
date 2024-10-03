@@ -72,15 +72,15 @@ def clean_email_body(body):
     # 使用 BeautifulSoup 解析 HTML 内容
     soup = BeautifulSoup(body, 'html.parser')
 
-    # 移除所有 <img> 标签
-    for img in soup.find_all('img'):
-        img.decompose()
+    # 清除 CSS 和 JavaScript 代码
+    for style in soup(['style', 'script']):
+        style.decompose()
 
-    # 清理多余的空行
+    # 获取纯文本，并仅保留换行符
     text = soup.get_text()
-    text = re.sub(r'\n{2,}', '\n', text)  # 将连续两个或多个换行符替换为一个
-
-    # 返回清理后的文本
+    
+    # 清理多余的空行，仅保留一个换行
+    text = re.sub(r'\n+', '\n', text)  # 替换连续的换行符为一个
     return text.strip()
 
 # 获取邮件内容并解决乱码问题
