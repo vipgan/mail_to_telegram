@@ -52,7 +52,7 @@ def decode_header(header):
         for fragment, encoding in decoded_fragments
     )
 
-# 清理邮件内容并转换为 Markdown 格式
+# 清理邮件内容
 def clean_email_body(body):
     body = ' '.join(body.split())  # 去除多余空格
     return body
@@ -68,8 +68,7 @@ def get_email_body(msg):
                 body = part.get_payload(decode=True).decode(charset or 'utf-8', errors='ignore')
                 break
             elif content_type == 'text/html':
-                html_body = part.get_payload(decode=True).decode(charset or 'utf-8', errors='ignore')
-                body = html2text.html2text(html_body)  # 将 HTML 转换为 Markdown
+                body = part.get_payload(decode=True).decode(charset or 'utf-8', errors='ignore')  # 保留 HTML 内容
                 break
     else:
         charset = msg.get_content_charset()
