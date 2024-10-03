@@ -89,6 +89,10 @@ def fetch_emails():
         mail.select('inbox')
 
         status, messages = mail.search(None, 'ALL')
+        if status != 'OK':
+            print("Error searching inbox.")
+            return
+
         email_ids = messages[0].split()
 
         for email_id in email_ids:
