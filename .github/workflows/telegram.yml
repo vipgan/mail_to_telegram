@@ -23,9 +23,9 @@ jobs:
       - name: Install dependencies
         run: |
           pip install requests
-          pip install imaplib2
+          pip install html2text
           pip install python-telegram-bot
-
+          
       - name: Run the script
         env:
           EMAIL_USER: ${{ secrets.EMAIL_USER }}
