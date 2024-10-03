@@ -1,11 +1,10 @@
 import imaplib
 import email
-import requests
 import os
 import json
 import time
-import re
-from datetime import datetime, timedelta
+from datetime import datetime
+from telegram import Bot
 
 # 设置邮箱信息
 email_user = os.environ['EMAIL_USER']
@@ -15,6 +14,7 @@ imap_server = "imap.qq.com"
 # 设置 Telegram 信息
 TELEGRAM_API_KEY = os.environ['TELEGRAM_API_KEY']
 TELEGRAM_CHAT_ID = os.environ['TELEGRAM_CHAT_ID']
+bot = Bot(token=TELEGRAM_API_KEY)
 
 # 保存发送记录文件
 sent_emails_file = 'sent_emails.json'
@@ -31,12 +31,11 @@ def save_sent_emails(sent_emails):
     with open(sent_emails_file, 'w') as f:
         json.dump(sent_emails, f)
 
-# 发送消息到 Telegram，增加1秒延迟
+# 发送消息到 Telegram
 def send_message(text):
     try:
+        bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=text, parse_mode='Markdown')
         time.sleep(1)  # 增加1秒延迟
-        requests.post(f'https://api.telegram.org/bot{TELEGRAM_API_KEY}/sendMessage',
-                      data={'chat_id': TELEGRAM_CHAT_ID, 'text': text, 'parse_mode': 'Markdown'})
     except Exception as e:
         print(f"Error sending message to Telegram: {e}")
 
@@ -47,20 +46,6 @@ def decode_header(header):
         str(fragment, encoding or 'utf-8') if isinstance(fragment, bytes) else fragment
         for fragment, encoding in decoded_fragments
     )
-
-# 清理邮件内容并转换为 Markdown 格式
-def clean_email_body(body):
-    # 替换 HTML 标签为 Markdown 格式
-    body = re.sub(r'<b>(.*?)</b>', r'**\1**', body)  # 粗体
-    body = re.sub(r'<i>(.*?)</i>', r'_\1_', body)    # 斜体
-    body = re.sub(r'<u>(.*?)</u>', r'__\1__', body)  # 下划线
-
-    # 去除其他 HTML 标签
-    body = re.sub(r'<.*?>', '', body)
-    body = re.sub(r'&.*?;', '', body)  # 去除 HTML 实体
-    # 删除空行
-    body = re.sub(r'\n\s*\n', '\n', body)  # 替换多个换行符为一个换行符
-    return body
 
 # 获取邮件内容并解决乱码问题
 def get_email_body(msg):
@@ -74,17 +59,12 @@ def get_email_body(msg):
     else:
         charset = msg.get_content_charset()
         body = msg.get_payload(decode=True).decode(charset or 'utf-8', errors='ignore')
-    return clean_email_body(body)
+    return body
 
 # 获取并处理邮件
 def fetch_emails():
-    keywords = ['接收', '信用卡', 'google', 'Azure', 'cloudflare', 'Microsoft', '账户', '账单']
     sent_emails = load_sent_emails()
     
-        # 计算两天前的日期
-    two_days_ago = datetime.now() - timedelta(days=2)
-    date_string = two_days_ago.strftime('%d-%b-%Y')
-
     try:
         mail = imaplib.IMAP4_SSL(imap_server)
         mail.login(email_user, email_password)
@@ -105,13 +85,15 @@ def fetch_emails():
             if subject in sent_emails:
                 continue
 
-            # 发送消息，使用 Markdown 格式
-            message = f'''
-**发件人**: {sender}  
-**主题**: {subject}  
-**内容**:  
-{body}
-'''
+            # 发送消息，使用列表格式
+            message = f"""
+* **new mail**
+* **发件人**: {sender}
+* **主题**: {subject}
+* **时间**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+* **内容**: 
+    - {body}
+"""
             send_message(message)
             
             # 记录发送的邮件
