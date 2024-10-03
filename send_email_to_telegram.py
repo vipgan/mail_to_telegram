@@ -6,7 +6,6 @@ import json
 import time
 import re
 import logging
-from datetime import datetime
 from bs4 import BeautifulSoup
 from concurrent.futures import ThreadPoolExecutor
 
@@ -44,13 +43,15 @@ def save_sent_emails(sent_emails):
 # 发送消息到 Telegram
 def send_message(text):
     try:
+        # 清理 Markdown 中的连续换行符（最多允许1个换行）
+        text = re.sub(r'\n{2,}', '\n', text)
 
         # 检查消息长度并截断超过限制的部分
         if len(text) > MAX_MESSAGE_LENGTH:
             text = text[:MAX_MESSAGE_LENGTH-3] + "..."
 
         # 增加延迟避免 API 限制
-        time.sleep(2)  # 增加1秒延迟
+        time.sleep(1)  # 增加1秒延迟
 
         # 发送到 Telegram
         requests.post(f'https://api.telegram.org/bot{TELEGRAM_API_KEY}/sendMessage',
@@ -65,6 +66,22 @@ def decode_header(header):
         str(fragment, encoding or 'utf-8') if isinstance(fragment, bytes) else fragment
         for fragment, encoding in decoded_fragments
     )
+
+# 清理邮件内容并转换为 Markdown 格式
+def clean_email_body(body):
+    # 使用 BeautifulSoup 解析 HTML 内容
+    soup = BeautifulSoup(body, 'html.parser')
+
+    # 移除所有 <img> 标签
+    for img in soup.find_all('img'):
+        img.decompose()
+
+    # 清理多余的空行
+    text = soup.get_text()
+    text = re.sub(r'\n{2,}', '\n', text)  # 将连续两个或多个换行符替换为一个
+
+    # 返回清理后的文本
+    return text.strip()
 
 # 获取邮件内容并解决乱码问题
 def get_email_body(msg):
