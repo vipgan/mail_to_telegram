@@ -95,9 +95,9 @@ def fetch_emails():
 
             # 发送消息，使用 Markdown 格式
             message = f'''
-**主题**: {subject}
-**发件人**: {sender}  
-**内容**:  
+*主题*: {subject}
+*发件人*: {sender}  
+*内容*:  
 {body}
 '''
             send_message(message)
