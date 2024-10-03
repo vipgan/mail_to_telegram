@@ -6,7 +6,7 @@ import json
 import time
 import re
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 from bs4 import BeautifulSoup
 from concurrent.futures import ThreadPoolExecutor
 
@@ -135,17 +135,13 @@ def process_email(email_id, mail, sent_emails):
 def fetch_emails():
     sent_emails = load_sent_emails()
 
-    # 获取当前时间
-    now = datetime.now()
-    two_days_ago = now - timedelta(days=2)
-    
     try:
         mail = imaplib.IMAP4_SSL(IMAP_SERVER)
         mail.login(email_user, email_password)
         mail.select('inbox')
 
-        # 搜索未读邮件
-        status, messages = mail.search(None, '(UNSEEN)')
+        # 搜索所有邮件
+        status, messages = mail.search(None, 'ALL')
         email_ids = messages[0].split()
 
         # 使用多线程处理每封邮件
