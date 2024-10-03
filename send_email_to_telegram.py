@@ -35,10 +35,6 @@ def save_sent_emails(sent_emails):
     with open(sent_emails_file, 'w') as f:
         json.dump(sent_emails, f)
 
-# 转义 Markdown 特殊字符
-def escape_markdown(text):
-    return text.replace('_', '\\_').replace('*', '\\*').replace('[', '\\[').replace(']', '\\]').replace('`', '\\`')
-
 # 发送消息到 Telegram
 def send_message(text):
     try:
@@ -47,9 +43,6 @@ def send_message(text):
             logging.warning("Message too long, trimming...")
             text = text[:4096]  # 只发送前4096个字符
             
-        # 转义特殊字符
-        text = escape_markdown(text)
-
         time.sleep(1)
         response = requests.post(f'https://api.telegram.org/bot{TELEGRAM_API_KEY}/sendMessage',
                                  data={'chat_id': TELEGRAM_CHAT_ID, 'text': text, 'parse_mode': 'Markdown'})
@@ -120,11 +113,11 @@ def fetch_emails():
             current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             # 发送消息，使用 Markdown 格式
             message = f'''
-**New Mail**  
-**发件人**: {sender}  
-**主题**: {subject}  
-**时间**: {current_time}  
-**内容**:  
+*New Mail*  
+*发件人*: {sender}  
+*主题*: {subject}  
+*时间*: {current_time}  
+*内容*:  
 {body}
 '''
             send_message(message)
