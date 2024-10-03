@@ -24,29 +24,36 @@ TELEGRAM_CHAT_ID = os.environ['TELEGRAM_CHAT_ID']
 # 保存发送记录文件
 sent_emails_file = 'sent_emails.json'
 
-# 加载已发送的邮件记录（使用 email_id）
+# 加载已发送的邮件记录
 def load_sent_emails():
     if os.path.exists(sent_emails_file):
         with open(sent_emails_file, 'r') as f:
             return json.load(f)
-    return {}
+    return []
 
-# 保存已发送的邮件记录（使用 email_id）
+# 保存已发送的邮件记录
 def save_sent_emails(sent_emails):
     with open(sent_emails_file, 'w') as f:
         json.dump(sent_emails, f)
 
-# 发送消息到 Telegram，增加1秒延迟并清除多余换行符
+# 发送消息到 Telegram
 def send_message(text):
     try:
         # 清理 Markdown 中的连续换行符（最多允许1个换行）
-        text = re.sub(r'\n{2,}', '\n', text)  # 替换多个连续的换行符为一个
-        
+        text = re.sub(r'\n{2,}', '\n', text)
+
+        # 转义 Markdown 中的特殊字符（如 `[` 和 `]`）
+        text = escape_markdown(text)
+
         time.sleep(1)  # 增加1秒延迟
         requests.post(f'https://api.telegram.org/bot{TELEGRAM_API_KEY}/sendMessage',
                       data={'chat_id': TELEGRAM_CHAT_ID, 'text': text, 'parse_mode': 'Markdown'})
     except Exception as e:
         logging.error(f"Error sending message to Telegram: {e}")
+
+# 转义 Markdown 中的特殊字符
+def escape_markdown(text):
+    return text.replace('[', '\\[').replace(']', '\\[')
 
 # 解码邮件头
 def decode_header(header):
@@ -58,29 +65,30 @@ def decode_header(header):
 
 # 清理邮件内容并转换为 Markdown 格式
 def clean_email_body(body):
-    # 使用 BeautifulSoup 清理 HTML
+    # 使用 BeautifulSoup 解析 HTML 内容
     soup = BeautifulSoup(body, 'html.parser')
 
-    # 移除图片标签 <img> 和包含图片链接的 <a> 标签
+    # 移除所有 <img> 标签
     for img in soup.find_all('img'):
-        img.decompose()  # 移除图片标签
-    for a in soup.find_all('a'):
-        if any(ext in a['href'] for ext in ['.jpg', '.jpeg', '.png', '.gif', '.bmp']):  # 检查链接是否是图片
-            a.decompose()  # 移除图片链接
-        else:
-            a.unwrap()  # 保留其他普通链接
+        img.decompose()
 
+    # 清理多余的空行
     text = soup.get_text()
+    text = re.sub(r'\n{2,}', '\n', text)  # 将连续两个或多个换行符替换为一个
 
-    # 清理多余的空行和空白字符
-    text = re.sub(r'\s+', ' ', text)  # 将连续的空白字符（包括换行符）替换为单个空格
-    text = re.sub(r'\n+', '\n', text)  # 清理多余的换行符
-    text = re.sub(r'^\s+$', '', text, flags=re.MULTILINE)  # 删除每行的空白行
+    # 保留图片链接，移除其他链接
+    def is_image_link(href):
+        return any(href.endswith(ext) for ext in ['.jpg', '.jpeg', '.png', '.gif', '.bmp'])
 
-    # 按行处理，移除只包含空白或特殊字符的行
-    lines = text.split('\n')
-    cleaned_lines = [line.strip() for line in lines if line.strip()]  # 去掉空白行
-    return '\n'.join(cleaned_lines).strip()  # 去除首尾空白并合并为字符串
+    for a in soup.find_all('a'):
+        href = a.get('href')
+        if is_image_link(href):
+            a.unwrap()  # 保留图片链接的文本
+        else:
+            a.decompose()  # 移除其他链接
+
+    # 返回清理后的文本
+    return text.strip()
 
 # 获取邮件内容并解决乱码问题
 def get_email_body(msg):
@@ -100,6 +108,10 @@ def get_email_body(msg):
 def fetch_emails():
     sent_emails = load_sent_emails()
     
+    # 获取当前时间
+    now = datetime.now()
+    two_days_ago = now - timedelta(days=2)
+    
     try:
         mail = imaplib.IMAP4_SSL(imap_server)
         mail.login(email_user, email_password)
@@ -110,18 +122,16 @@ def fetch_emails():
         email_ids = messages[0].split()
 
         for email_id in email_ids:
-            if email_id.decode() in sent_emails:
-                continue  # 如果已经发送，跳过此邮件
-
             _, msg_data = mail.fetch(email_id, '(RFC822)')
             msg = email.message_from_bytes(msg_data[0][1])
             
-            subject = decode_header(msg['subject'])
+            # 将主题中的[]替换为{}
+            subject = decode_header(msg['subject']).replace('[', '{').replace(']', '}')  
             sender = decode_header(msg['from'])
             date_str = msg['date']
             body = get_email_body(msg)
 
-            # 发送消息，使用 Markdown 格式，发件人放在主题后面
+            # 发送消息，使用 Markdown 格式，将发件人放在主题后面
             message = f'''
 *主题*: {subject}  
 *发件人*: {sender}  
@@ -132,10 +142,7 @@ def fetch_emails():
             send_message(message)
             
             # 记录发送的邮件
-            sent_emails.append(email_id.decode())  # 使用 email_id 作为唯一标识
-
-            # 将邮件标记为已读
-            mail.store(email_id, '+FLAGS', '\\Seen')
+            sent_emails.append(subject)
 
     except Exception as e:
         logging.error(f"Error fetching emails: {e}")
