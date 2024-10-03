@@ -5,7 +5,7 @@ import os
 import json
 import time
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 from bs4 import BeautifulSoup
 
 # 设置日志
@@ -38,12 +38,11 @@ def save_sent_emails(sent_emails):
 # 发送消息到 Telegram
 def send_message(text):
     try:
-        # 确保文本长度不超过4096个字符
         if len(text) > 4096:
             logging.warning("Message too long, trimming...")
-            text = text[:4096]  # 只发送前4096个字符
+            text = text[:4096]
             
-        logging.info(f"Sending message: {text}")  # 添加日志输出
+        logging.info(f"Sending message: {text}")
         time.sleep(1)
         response = requests.post(f'https://api.telegram.org/bot{TELEGRAM_API_KEY}/sendMessage',
                                  data={'chat_id': TELEGRAM_CHAT_ID, 'text': text, 'parse_mode': 'Markdown'})
@@ -59,13 +58,25 @@ def decode_header(header):
         for fragment, encoding in decoded_fragments
     )
 
-# 清理邮件内容并转换为 Markdown 格式
+# 清理邮件内容
 def clean_email_body(body):
     soup = BeautifulSoup(body, 'html.parser')
+    
+    # 清除特定标签
+    for img in soup.find_all('img'):
+        img.decompose()  # 删除图片
+    for a in soup.find_all('a'):
+        a.decompose()  # 删除链接
+    for video in soup.find_all('video'):
+        video.decompose()  # 删除视频
+    for script in soup.find_all('script'):
+        script.decompose()  # 删除脚本
+    for style in soup.find_all('style'):
+        style.decompose()  # 删除样式
+    
     text = soup.get_text()  # 获取纯文本
-    # 去除空行
     lines = [line.strip() for line in text.splitlines() if line.strip()]
-    return '\n'.join(lines)  # 合并非空行
+    return '\n'.join(lines)
 
 # 获取邮件内容并解决乱码问题
 def get_email_body(msg):
@@ -102,17 +113,18 @@ def fetch_emails():
             sender = decode_header(msg['from'])
             body = get_email_body(msg)
 
+            # 获取原始邮件日期
+            original_time = email.utils.parsedate_to_datetime(msg['Date']).strftime('%Y-%m-%d %H:%M:%S')
+
             # 检查邮件ID是否已经发送过
             if subject in sent_emails:
                 continue
 
-            # 获取当前时间
-            current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             # 发送消息，使用 Markdown 格式
             message = f'''
 *发件人*: {sender}  
 *主题*: {subject}  
-*时间*: {current_time}  
+*时间*: {original_time}  
 *内容*:  
 {body}
 '''
