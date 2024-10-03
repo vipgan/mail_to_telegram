@@ -4,7 +4,6 @@ import requests
 import os
 import json
 import time
-from datetime import datetime, timedelta
 from telegram import Bot
 import asyncio
 
@@ -79,16 +78,13 @@ def get_email_body(msg):
 async def fetch_emails():
     sent_emails = load_sent_emails()
 
-    # 计算最近2天的日期
-    date_since = (datetime.now() - timedelta(days=2)).strftime('%d-%b-%Y')
-
     try:
         mail = imaplib.IMAP4_SSL(imap_server)
         mail.login(email_user, email_password)
         mail.select('inbox')
 
-        # 仅获取最近2天的邮件
-        status, messages = mail.search(None, f'SINCE {date_since}')
+        # 获取所有邮件
+        status, messages = mail.search(None, 'ALL')
         email_ids = messages[0].split()
 
         for email_id in email_ids:
@@ -105,6 +101,7 @@ async def fetch_emails():
 
             # 发送消息，使用 HTML 格式
             message = f'''
+<b>New mail</b><br>
 <b>发件人</b>: {sender}<br>
 <b>主题</b>: {subject}<br>
 <b>内容</b>: <br>{body}
