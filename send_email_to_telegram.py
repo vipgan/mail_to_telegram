@@ -61,14 +61,13 @@ def clean_email_body(body):
     # 使用 BeautifulSoup 清理 HTML
     soup = BeautifulSoup(body, 'html.parser')
 
-    # 移除图片标签 <img> 和包含图片链接的 <a> 标签
+    # 移除图片、地址和语言代码
     for img in soup.find_all('img'):
-        img.decompose()  # 移除图片标签
+        img.decompose()
     for a in soup.find_all('a'):
-        if any(ext in a['href'] for ext in ['.jpg', '.jpeg', '.png', '.gif', '.bmp']):  # 检查链接是否是图片
-            a.decompose()  # 移除图片链接
-        else:
-            a.unwrap()  # 保留其他普通链接
+        a.unwrap()
+    for tag in soup.find_all(True):
+        tag.attrs = {}
 
     text = soup.get_text()
 
