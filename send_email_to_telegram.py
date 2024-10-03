@@ -64,22 +64,27 @@ def sanitize_string(s):
 # 获取邮件内容并解决乱码问题
 def get_email_body(msg):
     body = ""
-    if msg.is_multipart():
-        for part in msg.walk():
-            content_type = part.get_content_type()
-            charset = part.get_content_charset()
-            if content_type == 'text/plain':
-                body = part.get_payload(decode=True).decode(charset or 'utf-8', errors='ignore')
-                break
-            elif content_type == 'text/html':
-                body = part.get_payload(decode=True).decode(charset or 'utf-8', errors='ignore')  # 保留 HTML 内容
-                break
-    else:
-        charset = msg.get_content_charset()
-        body = msg.get_payload(decode=True).decode(charset or 'utf-8', errors='ignore')
-    
-    cleaned_body = clean_email_body(body)
-    return cleaned_body if isinstance(cleaned_body, str) else str(cleaned_body)  # 确保返回字符串
+    try:
+        if msg.is_multipart():
+            for part in msg.walk():
+                content_type = part.get_content_type()
+                charset = part.get_content_charset()
+                if content_type == 'text/plain':
+                    body = part.get_payload(decode=True).decode(charset or 'utf-8', errors='ignore')
+                    break
+                elif content_type == 'text/html':
+                    body = part.get_payload(decode=True).decode(charset or 'utf-8', errors='ignore')  # 保留 HTML 内容
+                    break
+        else:
+            charset = msg.get_content_charset()
+            body = msg.get_payload(decode=True).decode(charset or 'utf-8', errors='ignore')
+        
+        cleaned_body = clean_email_body(body)
+        return cleaned_body if isinstance(cleaned_body, str) else str(cleaned_body)  # 确保返回字符串
+
+    except Exception as e:
+        print(f"Error getting email body: {e}")  # 日志记录错误
+        return ""  # 返回空字符串以避免类型错误
 
 # 获取并处理邮件
 async def fetch_emails():
@@ -106,7 +111,7 @@ async def fetch_emails():
             date = sanitize_string(decode_header(msg['date']))
 
             # 打印调试信息
-            print(f"Processing email: ID={email_id}, Subject={subject}, Sender={sender}")
+            print(f"Processing email: ID={email_id}, Subject={subject}, Sender={sender}, Body Length={len(body)}")
 
             # 检查邮件ID是否已经发送过
             if subject in sent_emails:
