@@ -77,7 +77,9 @@ def get_email_body(msg):
     else:
         charset = msg.get_content_charset()
         body = msg.get_payload(decode=True).decode(charset or 'utf-8', errors='ignore')
-    return clean_email_body(body)
+    
+    cleaned_body = clean_email_body(body)
+    return cleaned_body if isinstance(cleaned_body, str) else str(cleaned_body)  # 确保返回字符串
 
 # 获取并处理邮件
 async def fetch_emails():
@@ -102,6 +104,9 @@ async def fetch_emails():
 
             # 获取邮件时间
             date = sanitize_string(decode_header(msg['date']))
+
+            # 打印调试信息
+            print(f"Processing email: ID={email_id}, Subject={subject}, Sender={sender}")
 
             # 检查邮件ID是否已经发送过
             if subject in sent_emails:
