@@ -1,126 +1,113 @@
-import imaplib
-import email
 import os
 import json
-import time
 import re
-from telegram import Bot
+import email
+import imaplib
 import asyncio
-from html import escape
+from email.header import decode_header
+from telegram import Bot
 
-# 设置邮箱信息
-email_user = os.environ['EMAIL_USER']
-email_password = os.environ['EMAIL_PASSWORD']
-imap_server = "imap.qq.com"
+# 配置 Telegram Bot
+TELEGRAM_TOKEN = 'YOUR_TELEGRAM_TOKEN'
+CHAT_ID = 'YOUR_CHAT_ID'
+bot = Bot(token=TELEGRAM_TOKEN)
 
-# 设置 Telegram 信息
-TELEGRAM_API_KEY = os.environ['TELEGRAM_API_KEY']
-TELEGRAM_CHAT_ID = os.environ['TELEGRAM_CHAT_ID']
+# 邮箱配置
+IMAP_SERVER = 'imap.qq.com'
+EMAIL_USER = 'YOUR_EMAIL'
+EMAIL_PASSWORD = 'YOUR_EMAIL_PASSWORD'
 
-# Telegram Bot 实例化
-bot = Bot(token=TELEGRAM_API_KEY)
+# 发送邮件记录文件
+SENT_EMAILS_FILE = 'sent_emails.json'
 
-# 保存发送记录文件
-sent_emails_file = 'sent_emails.json'
-
-# 加载已发送的邮件记录
+# 载入已发送邮件记录
 def load_sent_emails():
-    if os.path.exists(sent_emails_file):
-        with open(sent_emails_file, 'r') as f:
+    if os.path.exists(SENT_EMAILS_FILE):
+        with open(SENT_EMAILS_FILE, 'r', encoding='utf-8') as f:
             return json.load(f)
     return []
 
-# 保存已发送的邮件记录
+# 保存已发送邮件记录
 def save_sent_emails(sent_emails):
-    with open(sent_emails_file, 'w') as f:
+    with open(SENT_EMAILS_FILE, 'w', encoding='utf-8') as f:
         json.dump(sent_emails, f)
 
-# 发送消息到 Telegram
-async def send_message(text):
-    try:
-        await asyncio.sleep(1)
-        response = await bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=text, parse_mode='HTML')
-        print(f"Message sent: {response}")
-    except Exception as e:
-        print(f"Error sending message to Telegram: {e}")
+# HTML 字符转义
+def escape(text):
+    return (text.replace('&', '&amp;')
+                .replace('<', '&lt;')
+                .replace('>', '&gt;')
+                .replace('"', '&quot;')
+                .replace("'", '&#39;'))
 
 # 解码邮件头
-def decode_header(header):
-    decoded_fragments = email.header.decode_header(header)
+def sanitize_string(header):
+    decoded_parts = decode_header(header)
     return ''.join(
-        str(fragment, encoding or 'utf-8') if isinstance(fragment, bytes) else fragment
-        for fragment, encoding in decoded_fragments
+        str(part, encoding) if isinstance(part, bytes) else part
+        for part, encoding in decoded_parts
     )
 
-# 清理邮件内容
-def clean_email_body(body):
-    body = ' '.join(body.split())
-    return escape(body)
-
-# 过滤特殊字符
-def sanitize_string(s):
-    return ''.join(char for char in s if char.isprintable())
-
-# 获取邮件内容并解决乱码问题
+# 获取邮件内容
 def get_email_body(msg):
-    body = ""
-    try:
-        if msg.is_multipart():
-            for part in msg.walk():
-                content_type = part.get_content_type()
-                charset = part.get_content_charset()
-                if content_type in ['text/plain', 'text/html']:
-                    body = part.get_payload(decode=True).decode(charset or 'utf-8', errors='ignore')
-                    break
-        else:
-            charset = msg.get_content_charset()
-            body = msg.get_payload(decode=True).decode(charset or 'utf-8', errors='ignore')
-        
-        cleaned_body = clean_email_body(body)
-        return cleaned_body if isinstance(cleaned_body, str) else str(cleaned_body)
+    if msg.is_multipart():
+        for part in msg.walk():
+            if part.get_content_type() == 'text/plain':
+                return part.get_payload(decode=True).decode()
+            elif part.get_content_type() == 'text/html':
+                return part.get_payload(decode=True).decode()
+    else:
+        return msg.get_payload(decode=True).decode()
+    return ''
 
+# 发送消息到 Telegram
+async def send_message(message):
+    try:
+        await bot.send_message(chat_id=CHAT_ID, text=message, parse_mode='HTML')
     except Exception as e:
-        print(f"Error getting email body: {e}")
-        return ""
+        print(f"Error sending message to Telegram: {e}")
 
 # 获取并处理邮件
 async def fetch_emails():
     sent_emails = load_sent_emails()
 
     try:
-        mail = imaplib.IMAP4_SSL(imap_server)
-        mail.login(email_user, email_password)
+        mail = imaplib.IMAP4_SSL(IMAP_SERVER)
+        mail.login(EMAIL_USER, EMAIL_PASSWORD)
         mail.select('inbox')
 
         status, messages = mail.search(None, 'ALL')
         email_ids = messages[0].split()
 
         for email_id in email_ids:
-            _, msg_data = mail.fetch(email_id, '(RFC822)')
-            msg = email.message_from_bytes(msg_data[0][1])
-            
-            subject = sanitize_string(decode_header(msg['subject']))
-            sender = sanitize_string(decode_header(msg['from']))
-            body = get_email_body(msg)
+            try:
+                _, msg_data = mail.fetch(email_id, '(RFC822)')
+                msg = email.message_from_bytes(msg_data[0][1])
+                
+                subject = sanitize_string(decode_header(msg['subject']))
+                sender = sanitize_string(decode_header(msg['from']))
+                body = get_email_body(msg)
+                date = sanitize_string(decode_header(msg['date']))
 
-            date = sanitize_string(decode_header(msg['date']))
+                print(f"Processing email: ID={email_id}, Subject={subject}, Sender={sender}, Body Length={len(body)}")
 
-            print(f"Processing email: ID={email_id}, Subject={subject}, Sender={sender}, Body Length={len(body)}")
+                if subject in sent_emails:
+                    continue
 
-            if subject in sent_emails:
-                continue
-
-            message = f'''
+                message = f'''
 <b>New mail</b>
 <b>发件人</b>: {escape(sender)}<br>
 <b>时间</b>: {escape(date)}<br>
 <b>主题</b>: {escape(subject)}<br>
 <b>内容</b>: <pre>{escape(body[:1000])}</pre>  # 限制发送内容长度
 '''
-            print(f"Message to send: {message}")  # 打印即将发送的消息
+                print(f"Message to send: {message}")  # 打印即将发送的消息
 
-            await send_message(message)
-            sent_emails.append(subject)
+                await send_message(message)
+                sent_emails.append(subject)
+
+            except Exception as e:
+                print(f"Error processing email ID={email_id}: {e}")
 
     except Exception as e:
         print(f"Error fetching emails: {e}")
@@ -128,5 +115,6 @@ async def fetch_emails():
         mail.logout()
         save_sent_emails(sent_emails)
 
+# 主函数
 if __name__ == '__main__':
     asyncio.run(fetch_emails())
