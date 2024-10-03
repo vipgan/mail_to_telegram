@@ -3,8 +3,10 @@ import email
 import os
 import json
 import time
+import re
 from telegram import Bot
 import asyncio
+from html import escape
 
 # 设置邮箱信息
 email_user = os.environ['EMAIL_USER']
@@ -53,7 +55,7 @@ def decode_header(header):
 # 清理邮件内容
 def clean_email_body(body):
     body = ' '.join(body.split())  # 去除多余空格
-    return body
+    return escape(body)  # 转义 HTML 特殊字符
 
 # 过滤特殊字符
 def sanitize_string(s):
@@ -108,10 +110,10 @@ async def fetch_emails():
             # 限制消息长度
             message = f'''
 <b>New mail</b>
-<b>发件人</b>: {sender}<br>
-<b>时间</b>: {date}<br>
-<b>主题</b>: {subject}<br>
-<b>内容</b>: <pre>{body}</pre>
+<b>发件人</b>: {escape(sender)}<br>
+<b>时间</b>: {escape(date)}<br>
+<b>主题</b>: {escape(subject)}<br>
+<b>内容</b>: <pre>{escape(body)}</pre>
 '''
             if len(message) > 4096:  # Telegram 消息最大长度限制
                 message = message[:4096]
