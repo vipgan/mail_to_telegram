@@ -57,7 +57,9 @@ def decode_header(header):
 def clean_email_body(body):
     soup = BeautifulSoup(body, 'html.parser')
     text = soup.get_text()  # 获取纯文本
-    return text.strip()  # 去除前后空白
+    # 去除空行
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    return '\n'.join(lines)  # 合并非空行
 
 # 获取邮件内容并解决乱码问题
 def get_email_body(msg):
@@ -77,9 +79,6 @@ def get_email_body(msg):
 def fetch_emails():
     keywords = ['接收', '信用卡', 'google', 'Azure', 'cloudflare', 'Microsoft', '账户', '账单']
     sent_emails = load_sent_emails()
-
-    two_days_ago = datetime.now() - timedelta(days=2)
-    date_string = two_days_ago.strftime('%d-%b-%Y')
 
     try:
         mail = imaplib.IMAP4_SSL(imap_server)
@@ -101,10 +100,14 @@ def fetch_emails():
             if subject in sent_emails:
                 continue
 
+            # 获取当前时间
+            current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             # 发送消息，使用 Markdown 格式
             message = f'''
+**New Mail**  
 **发件人**: {sender}  
 **主题**: {subject}  
+**时间**: {current_time}  
 **内容**:  
 {body}
 '''
