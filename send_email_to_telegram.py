@@ -104,11 +104,11 @@ async def fetch_emails():
 
             # 发送消息，使用 HTML 格式
             message = f'''
-<b>New mail</b><br>
+<b>New mail</b>
 <b>发件人</b>: {sender}<br>
 <b>时间</b>: {date}<br>
 <b>主题</b>: {subject}<br>
-<b>内容</b>: <br>{body}
+<b>内容</b>: <pre>{body}</pre>
 '''
             await send_message(message)
             
