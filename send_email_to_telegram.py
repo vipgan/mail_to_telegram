@@ -29,7 +29,7 @@ def load_sent_emails():
     if os.path.exists(sent_emails_file):
         with open(sent_emails_file, 'r') as f:
             return json.load(f)
-    return []
+    return {}
 
 # 保存已发送的邮件记录（使用 email_id）
 def save_sent_emails(sent_emails):
