@@ -4,6 +4,7 @@ import os
 import json
 import time
 import base64
+import asyncio
 from email.utils import parsedate_to_datetime
 from telegram import Bot
 from telegram.constants import ParseMode
@@ -44,10 +45,10 @@ def save_sent_emails(sent_emails):
         json.dump(encoded_emails, f)
 
 # 发送消息到 Telegram，支持 Markdown V2 格式
-def send_message(text):
+async def send_message(text):
     try:
-        time.sleep(3)  # 增加1秒延迟
-        bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=text, parse_mode=ParseMode.MARKDOWN_V2)
+        await bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=text, parse_mode=ParseMode.MARKDOWN_V2)
+        await asyncio.sleep(3)  # 增加1秒延迟
     except Exception as e:
         print(f"Error sending message to Telegram: {e}")
 
@@ -87,7 +88,7 @@ def get_email_date(msg):
     return date_tuple.strftime('%Y-%m-%d %H:%M:%S') if date_tuple else '未知时间'
 
 # 获取并处理邮件
-def fetch_emails():
+async def fetch_emails():
     sent_emails = load_sent_emails()
     
     try:
@@ -125,7 +126,7 @@ def fetch_emails():
 *内容*: \n
 {body}
 '''
-                send_message(message)
+                await send_message(message)
                 
                 # 记录发送的邮件（Base64 编码保存）
                 sent_emails.append(subject)
@@ -139,5 +140,6 @@ def fetch_emails():
         mail.logout()
         save_sent_emails(sent_emails)
 
+# 主函数
 if __name__ == '__main__':
-    fetch_emails()
+    asyncio.run(fetch_emails())
