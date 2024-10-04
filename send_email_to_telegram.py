@@ -9,7 +9,7 @@ import logging
 from datetime import datetime, timedelta
 from bs4 import BeautifulSoup
 import base64
-from telegram import escape_markdown, ParseMode
+from telegram.helpers import escape_markdown  # 更新导入语句
 
 # 设置日志记录
 logging.basicConfig(level=logging.INFO)
@@ -40,7 +40,7 @@ def save_sent_emails(sent_emails):
 
 def send_message(text):
     try:
-        time.sleep(2)  # 增加1秒延迟
+        time.sleep(4)  # 增加1秒延迟
         text = escape_markdown(text)  # 清理文本以适应 Markdown
         response = requests.post(f'https://api.telegram.org/bot{TELEGRAM_API_KEY}/sendMessage',
                                  data={'chat_id': TELEGRAM_CHAT_ID, 'text': text, 'parse_mode': 'Markdown'})
