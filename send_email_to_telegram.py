@@ -5,6 +5,13 @@ import os
 import json
 import time
 import re
+import logging
+from datetime import datetime, timedelta
+from bs4 import BeautifulSoup
+import base64
+
+# 设置日志记录
+logging.basicConfig(level=logging.INFO)
 
 # 设置邮箱信息
 email_user = os.environ['EMAIL_USER']
@@ -33,11 +40,11 @@ def save_sent_emails(sent_emails):
 # 发送消息到 Telegram，增加1秒延迟
 def send_message(text):
     try:
-        time.sleep(3)  # 增加1秒延迟
+        time.sleep(4)  # 增加1秒延迟
         requests.post(f'https://api.telegram.org/bot{TELEGRAM_API_KEY}/sendMessage',
                       data={'chat_id': TELEGRAM_CHAT_ID, 'text': text, 'parse_mode': 'Markdown'})
     except Exception as e:
-        print(f"Error sending message to Telegram: {e}")
+        logging.error(f"Error sending message to Telegram: {e}")
 
 # 解码邮件头
 def decode_header(header):
@@ -49,23 +56,21 @@ def decode_header(header):
 
 # 清理邮件内容并转换为 Markdown 格式
 def clean_email_body(body):
-    # 替换 HTML 标签为 Markdown 格式
-    body = re.sub(r'<b>(.*?)</b>', r'**\1**', body)  # 粗体
-    body = re.sub(r'<i>(.*?)</i>', r'_\1_', body)    # 斜体
-    body = re.sub(r'<u>(.*?)</u>', r'__\1__', body)  # 下划线
+    # 使用 BeautifulSoup 清理 HTML
+    soup = BeautifulSoup(body, 'html.parser')
+    text = soup.get_text()
 
-    # 去除其他 HTML 标签
-    body = re.sub(r'<.*?>', '', body)
-    body = re.sub(r'&.*?;', '', body)  # 去除 HTML 实体
-    body = ' '.join(body.split())  # 去除多余空格
-    return body
+    # 清理多余的空行和空白
+    text = re.sub(r'\n\s*\n+', '\n', text)  # 替换多个换行符为一个换行符
+    text = re.sub(r'^\s*$', '', text, flags=re.MULTILINE)  # 清除空行
+    return text.strip()  # 去除首尾空白
 
 # 获取邮件内容并解决乱码问题
 def get_email_body(msg):
     body = ""
     if msg.is_multipart():
         for part in msg.walk():
-            if part.get_content_type() == 'text/plain':
+            if part.get_content_type() == 'text/html':
                 charset = part.get_content_charset()
                 body = part.get_payload(decode=True).decode(charset or 'utf-8', errors='ignore')
                 break
@@ -76,43 +81,53 @@ def get_email_body(msg):
 
 # 获取并处理邮件
 def fetch_emails():
-    keywords = ['接收', '信用卡', 'google', 'Azure', 'cloudflare', 'Microsoft', '账户', '账单']
     sent_emails = load_sent_emails()
+
+# 清理邮件主题
+def clean_subject(subject):
+    return re.sub(r'[^\w\s]', '', subject)  # 清除符号
+
+# 获取并处理邮件
+def fetch_emails():
+    sent_emails = load_sent_emails()
+    
+    # 获取当前时间
+    now = datetime.now()
+    two_days_ago = now - timedelta(days=2)
     
     try:
         mail = imaplib.IMAP4_SSL(imap_server)
         mail.login(email_user, email_password)
         mail.select('inbox')
 
-        status, messages = mail.search(None, 'ALL')
+        # 搜索未读邮件
+        status, messages = mail.search(None, '(UNSEEN)')
         email_ids = messages[0].split()
 
         for email_id in email_ids:
             _, msg_data = mail.fetch(email_id, '(RFC822)')
             msg = email.message_from_bytes(msg_data[0][1])
             
-            subject = decode_header(msg['subject'])
+            subject = clean_subject(decode_header(msg['subject']))  # 清理主题
             sender = decode_header(msg['from'])
+            date_str = msg['date']
             body = get_email_body(msg)
-
-            # 检查邮件ID是否已经发送过
-            if subject in sent_emails:
-                continue
 
             # 发送消息，使用 Markdown 格式
             message = f'''
-**发件人**: {sender}  
-**主题**: {subject}  
-**内容**:  
+*发件人*: {sender}  
+*主题*: {subject}  
+*时间*: {date_str}  
+*内容*:  
 {body}
 '''
             send_message(message)
             
             # 记录发送的邮件
-            sent_emails.append(subject)
+            sent_emails.append(base64.b64encode(subject.encode()).decode())  # 用 base64 保存主题
 
     except Exception as e:
-        print(f"Error fetching emails: {e}")
+        logging.error(f"Error fetching emails: {e}")
     finally:
         mail.logout()
         save_sent_emails(sent_emails)
