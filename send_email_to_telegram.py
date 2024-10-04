@@ -1,12 +1,12 @@
 import imaplib
 import email
+import requests
 import os
 import json
 import time
 import re
 import base64
 from email.utils import parsedate_to_datetime
-from datetime import datetime, timedelta
 from bs4 import BeautifulSoup
 from telegram import Bot
 
@@ -18,8 +18,6 @@ imap_server = "imap.qq.com"
 # 设置 Telegram 信息
 TELEGRAM_API_KEY = os.environ['TELEGRAM_API_KEY']
 TELEGRAM_CHAT_ID = os.environ['TELEGRAM_CHAT_ID']
-
-# 创建 Telegram Bot 实例
 bot = Bot(token=TELEGRAM_API_KEY)
 
 # 保存发送记录文件
@@ -50,7 +48,13 @@ def save_sent_emails(sent_emails):
 # 发送消息到 Telegram
 def send_message(text):
     try:
-        bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=text)
+        if len(text) > 4096:
+            print("Message is too long and will be truncated.")
+            text = text[:4096]  # 截断消息长度
+
+        print(f"Sending message to Telegram: {text}")  # 调试信息
+        response = bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=text, parse_mode=None)
+        print("Message sent successfully. Response:", response)  # 成功发送的调试信息
     except Exception as e:
         print(f"Error sending message to Telegram: {e}")
 
@@ -62,24 +66,7 @@ def decode_header(header):
         for fragment, encoding in decoded_fragments
     )
 
-# 清理邮件体，去除图片和代码内容，保留文本
-def clean_email_body(body):
-    # 使用 BeautifulSoup 清理 HTML 内容
-    soup = BeautifulSoup(body, "html.parser")
-
-    # 去掉图片标签和脚本/样式标签
-    for img in soup.find_all('img'):
-        img.decompose()
-    for script in soup.find_all(['script', 'style']):
-        script.decompose()
-
-    # 获取文本内容
-    text = soup.get_text()
-    # 将多个空行替换为一个空行
-    text = re.sub(r'\n\s*\n+', '\n\n', text)
-    return text.strip()
-
-# 获取邮件内容并转换为文本格式
+# 获取邮件内容并转换为纯文本
 def get_email_body(msg):
     body = ""
     if msg.is_multipart():
@@ -92,8 +79,21 @@ def get_email_body(msg):
         charset = msg.get_content_charset()
         body = msg.get_payload(decode=True).decode(charset or 'utf-8', errors='ignore')
 
-    # 清理邮件体并返回
-    return clean_email_body(body)
+    # 只保留文本内容，去除图片和多余标签
+    soup = BeautifulSoup(body, "html.parser")
+
+    # 去除 <img> 标签
+    for img in soup.find_all('img'):
+        img.decompose()
+    
+    # 清理 CSS 和 JS 标签及其内容
+    for script in soup(['script', 'style']):
+        script.decompose()
+
+    # 获取纯文本内容并去掉多余空行
+    text = soup.get_text()
+    text = re.sub(r'\n\s*\n+', '\n\n', text)  # 删除多余空行
+    return text.strip()  # 返回清理后的文本内容
 
 # 获取邮件原始时间
 def get_email_date(msg):
@@ -109,11 +109,8 @@ def fetch_emails():
         mail.login(email_user, email_password)
         mail.select('inbox')
 
-        # 获取最近三天的日期
-        since_date = (datetime.now() - timedelta(days=3)).strftime("%d-%b-%Y")
-
-        # 仅搜索最近三天内的未读邮件
-        status, messages = mail.search(None, f'(UNSEEN SINCE {since_date})')
+        # 仅搜索未读邮件
+        status, messages = mail.search(None, 'UNSEEN')
         if status != 'OK':
             print("Error searching inbox.")
             return
@@ -134,14 +131,8 @@ def fetch_emails():
                 if subject in sent_emails:
                     continue
 
-                # 发送消息，纯文本格式
-                message = f'''
-主题: {subject}
-发件人: {sender}  
-时间: {email_date}  
-内容:  
-{body}
-'''
+                # 发送消息，使用纯文本格式
+                message = f'主题: {subject}\n发件人: {sender}\n时间: {email_date}\n内容:\n{body}'
                 send_message(message)
                 
                 # 记录发送的邮件（Base64 编码保存）
