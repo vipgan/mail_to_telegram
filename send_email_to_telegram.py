@@ -4,8 +4,8 @@ import requests
 import os
 import json
 import time
+import re
 from email.utils import parsedate_to_datetime
-from bs4 import BeautifulSoup
 
 # 设置邮箱信息
 email_user = os.environ['EMAIL_USER']
@@ -47,17 +47,23 @@ def decode_header(header):
         for fragment, encoding in decoded_fragments
     )
 
-# 转义 Markdown 特殊字符
-def escape_markdown(text):
-    escape_chars = ['_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!']
-    for char in escape_chars:
-        text = text.replace(char, f'\\{char}')
-    return text
-
 # 获取邮件原始时间
 def get_email_date(msg):
     date_tuple = parsedate_to_datetime(msg['date'])
     return date_tuple.strftime('%Y-%m-%d %H:%M:%S') if date_tuple else '未知时间'
+
+# 清理邮件主体，去除图片、CSS和JS代码，并将多个空行合并为一个空行
+def clean_email_body(body):
+    # 去除 HTML 标签
+    body = re.sub(r'<[^>]+>', '', body)  # 去除所有 HTML 标签
+    
+    # 去除 CSS 和 JS 代码块
+    body = re.sub(r'(<style.*?>.*?</style>)|(<script.*?>.*?</script>)', '', body, flags=re.DOTALL)
+    
+    # 将多个空行替换为一个空行
+    body = re.sub(r'\n\s*\n+', '\n\n', body)
+    
+    return body.strip()  # 去除首尾空白
 
 # 获取邮件主体
 def get_email_body(msg):
@@ -71,7 +77,8 @@ def get_email_body(msg):
     else:
         charset = msg.get_content_charset()
         body = msg.get_payload(decode=True).decode(charset or 'utf-8', errors='ignore')
-    return body
+    
+    return clean_email_body(body)
 
 # 获取并处理邮件
 def fetch_emails():
@@ -95,21 +102,21 @@ def fetch_emails():
                 _, msg_data = mail.fetch(email_id, '(RFC822)')
                 msg = email.message_from_bytes(msg_data[0][1])
                 
-                subject = escape_markdown(decode_header(msg['subject']))
-                sender = escape_markdown(decode_header(msg['from']))
+                subject = decode_header(msg['subject'])
+                sender = decode_header(msg['from'])
                 email_date = get_email_date(msg)
-                body = escape_markdown(get_email_body(msg))
+                body = get_email_body(msg)
 
                 # 检查邮件ID是否已经发送过
                 if subject in sent_emails:
                     continue
 
-                # 发送消息，使用 Markdown V2 格式
+                # 发送消息
                 message = f'''
-*主题*: {subject}
-*发件人*: {sender}  
-*时间*: {email_date}  
-*内容*:  
+主题: {subject}
+发件人: {sender}  
+时间: {email_date}  
+内容:  
 {body}
 '''
                 send_message(message)
