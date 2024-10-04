@@ -23,9 +23,10 @@ jobs:
       - name: Install dependencies
         run: |
           pip install requests
+          pip install html2text
+          pip install python-telegram-bot
           pip install beautifulsoup4
-          pip install markdownify
-          pip install imaplib
+          pip install langdetect
           pip install base64
           pip install logging
 
