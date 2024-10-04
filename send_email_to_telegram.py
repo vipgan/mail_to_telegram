@@ -32,7 +32,6 @@ def load_sent_emails():
         with open(sent_emails_file, 'r') as f:
             return json.load(f)
     return []
-logging.info(f"Loaded sent emails: {sent_emails}")
 
 # 保存已发送的邮件记录
 def save_sent_emails(sent_emails):
