@@ -5,10 +5,7 @@ import os
 import json
 import time
 import re
-import base64
-from email.utils import parsedate_to_datetime
-from bs4 import BeautifulSoup
-from telegram import Bot
+import base64  # 导入 Base64 库
 
 # 设置邮箱信息
 email_user = os.environ['EMAIL_USER']
@@ -18,43 +15,35 @@ imap_server = "imap.qq.com"
 # 设置 Telegram 信息
 TELEGRAM_API_KEY = os.environ['TELEGRAM_API_KEY']
 TELEGRAM_CHAT_ID = os.environ['TELEGRAM_CHAT_ID']
-bot = Bot(token=TELEGRAM_API_KEY)
 
 # 保存发送记录文件
 sent_emails_file = 'sent_emails.json'
 
-# Base64 编码
-def encode_base64(text):
-    return base64.b64encode(text.encode('utf-8')).decode('utf-8')
-
-# Base64 解码
-def decode_base64(encoded_text):
-    return base64.b64decode(encoded_text.encode('utf-8')).decode('utf-8')
-
-# 加载已发送的邮件记录（Base64 解码）
+# 加载已发送的邮件记录，解码 Base64
 def load_sent_emails():
     if os.path.exists(sent_emails_file):
         with open(sent_emails_file, 'r') as f:
-            encoded_emails = json.load(f)
-            return [decode_base64(subject) for subject in encoded_emails]
+            encoded_data = f.read()
+            # 解码 Base64
+            decoded_data = base64.b64decode(encoded_data).decode('utf-8')
+            return json.loads(decoded_data)
     return []
 
-# 保存已发送的邮件记录（Base64 编码）
+# 保存已发送的邮件记录，编码为 Base64
 def save_sent_emails(sent_emails):
+    # 将邮件记录编码为 JSON 格式
+    json_data = json.dumps(sent_emails)
+    # 编码为 Base64
+    encoded_data = base64.b64encode(json_data.encode('utf-8')).decode('utf-8')
     with open(sent_emails_file, 'w') as f:
-        encoded_emails = [encode_base64(subject) for subject in sent_emails]
-        json.dump(encoded_emails, f)
+        f.write(encoded_data)
 
-# 发送消息到 Telegram
+# 发送消息到 Telegram，增加1秒延迟
 def send_message(text):
     try:
-        if len(text) > 4096:
-            print("Message is too long and will be truncated.")
-            text = text[:4096]  # 截断消息长度
-
-        print(f"Sending message to Telegram: {text}")  # 调试信息
-        response = bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=text, parse_mode=None)
-        print("Message sent successfully. Response:", response)  # 成功发送的调试信息
+        time.sleep(1)  # 增加1秒延迟
+        requests.post(f'https://api.telegram.org/bot{TELEGRAM_API_KEY}/sendMessage',
+                      data={'chat_id': TELEGRAM_CHAT_ID, 'text': text, 'parse_mode': 'Markdown'})
     except Exception as e:
         print(f"Error sending message to Telegram: {e}")
 
@@ -66,42 +55,36 @@ def decode_header(header):
         for fragment, encoding in decoded_fragments
     )
 
-# 获取邮件内容并转换为纯文本
+# 清理邮件内容并转换为 Markdown 格式
+def clean_email_body(body):
+    # 替换 HTML 标签为 Markdown 格式
+    body = re.sub(r'<b>(.*?)</b>', r'**\1**', body)  # 粗体
+    body = re.sub(r'<i>(.*?)</i>', r'_\1_', body)    # 斜体
+    body = re.sub(r'<u>(.*?)</u>', r'__\1__', body)  # 下划线
+
+    # 去除其他 HTML 标签
+    body = re.sub(r'<.*?>', '', body)
+    body = re.sub(r'&.*?;', '', body)  # 去除 HTML 实体
+    body = ' '.join(body.split())  # 去除多余空格
+    return body
+
+# 获取邮件内容并解决乱码问题
 def get_email_body(msg):
     body = ""
     if msg.is_multipart():
         for part in msg.walk():
-            if part.get_content_type() == 'text/html':
+            if part.get_content_type() == 'text/plain':
                 charset = part.get_content_charset()
                 body = part.get_payload(decode=True).decode(charset or 'utf-8', errors='ignore')
                 break
     else:
         charset = msg.get_content_charset()
         body = msg.get_payload(decode=True).decode(charset or 'utf-8', errors='ignore')
-
-    # 只保留文本内容，去除图片和多余标签
-    soup = BeautifulSoup(body, "html.parser")
-
-    # 去除 <img> 标签
-    for img in soup.find_all('img'):
-        img.decompose()
-    
-    # 清理 CSS 和 JS 标签及其内容
-    for script in soup(['script', 'style']):
-        script.decompose()
-
-    # 获取纯文本内容并去掉多余空行
-    text = soup.get_text()
-    text = re.sub(r'\n\s*\n+', '\n\n', text)  # 删除多余空行
-    return text.strip()  # 返回清理后的文本内容
-
-# 获取邮件原始时间
-def get_email_date(msg):
-    date_tuple = parsedate_to_datetime(msg['date'])
-    return date_tuple.strftime('%Y-%m-%d %H:%M:%S') if date_tuple else '未知时间'
+    return clean_email_body(body)
 
 # 获取并处理邮件
 def fetch_emails():
+    keywords = ['接收', '信用卡', 'google', 'Azure', 'cloudflare', 'Microsoft', '账户', '账单']
     sent_emails = load_sent_emails()
     
     try:
@@ -109,37 +92,32 @@ def fetch_emails():
         mail.login(email_user, email_password)
         mail.select('inbox')
 
-        # 仅搜索未读邮件
-        status, messages = mail.search(None, 'UNSEEN')
-        if status != 'OK':
-            print("Error searching inbox.")
-            return
-
+        status, messages = mail.search(None, 'ALL')
         email_ids = messages[0].split()
 
         for email_id in email_ids:
-            try:
-                _, msg_data = mail.fetch(email_id, '(RFC822)')
-                msg = email.message_from_bytes(msg_data[0][1])
-                
-                subject = decode_header(msg['subject'])
-                sender = decode_header(msg['from'])
-                body = get_email_body(msg)
-                email_date = get_email_date(msg)
+            _, msg_data = mail.fetch(email_id, '(RFC822)')
+            msg = email.message_from_bytes(msg_data[0][1])
+            
+            subject = decode_header(msg['subject'])
+            sender = decode_header(msg['from'])
+            body = get_email_body(msg)
 
-                # 检查邮件ID是否已经发送过
-                if subject in sent_emails:
-                    continue
+            # 检查邮件ID是否已经发送过
+            if subject in sent_emails:
+                continue
 
-                # 发送消息，使用纯文本格式
-                message = f'主题: {subject}\n发件人: {sender}\n时间: {email_date}\n内容:\n{body}'
-                send_message(message)
-                
-                # 记录发送的邮件（Base64 编码保存）
-                sent_emails.append(subject)
-
-            except Exception as e:
-                print(f"Error fetching email ID {email_id}: {e}")
+            # 发送消息，使用 Markdown 格式
+            message = f'''
+**发件人**: {sender}  
+**主题**: {subject}  
+**内容**:  
+{body}
+'''
+            send_message(message)
+            
+            # 记录发送的邮件
+            sent_emails.append(subject)
 
     except Exception as e:
         print(f"Error fetching emails: {e}")
