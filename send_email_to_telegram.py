@@ -53,6 +53,14 @@ def send_message(text):
     except Exception as e:
         print(f"Error sending message to Telegram: {e}")
 
+# 解码邮件头
+def decode_header(header):
+    decoded_fragments = email.header.decode_header(header)
+    return ''.join(
+        str(fragment, encoding or 'utf-8') if isinstance(fragment, bytes) else fragment
+        for fragment, encoding in decoded_fragments
+    )
+
 # 清理邮件体，去除图片和代码内容，保留文本
 def clean_email_body(body):
     # 使用 BeautifulSoup 清理 HTML 内容
