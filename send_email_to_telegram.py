@@ -5,7 +5,6 @@ import os
 import json
 import time
 import re
-import base64  # 导入 Base64 库
 
 # 设置邮箱信息
 email_user = os.environ['EMAIL_USER']
@@ -19,29 +18,22 @@ TELEGRAM_CHAT_ID = os.environ['TELEGRAM_CHAT_ID']
 # 保存发送记录文件
 sent_emails_file = 'sent_emails.json'
 
-# 加载已发送的邮件记录，解码 Base64
+# 加载已发送的邮件记录
 def load_sent_emails():
     if os.path.exists(sent_emails_file):
         with open(sent_emails_file, 'r') as f:
-            encoded_data = f.read()
-            # 解码 Base64
-            decoded_data = base64.b64decode(encoded_data).decode('utf-8')
-            return json.loads(decoded_data)
+            return json.load(f)
     return []
 
-# 保存已发送的邮件记录，编码为 Base64
+# 保存已发送的邮件记录
 def save_sent_emails(sent_emails):
-    # 将邮件记录编码为 JSON 格式
-    json_data = json.dumps(sent_emails)
-    # 编码为 Base64
-    encoded_data = base64.b64encode(json_data.encode('utf-8')).decode('utf-8')
     with open(sent_emails_file, 'w') as f:
-        f.write(encoded_data)
+        json.dump(sent_emails, f)
 
 # 发送消息到 Telegram，增加1秒延迟
 def send_message(text):
     try:
-        time.sleep(1)  # 增加1秒延迟
+        time.sleep(3)  # 增加1秒延迟
         requests.post(f'https://api.telegram.org/bot{TELEGRAM_API_KEY}/sendMessage',
                       data={'chat_id': TELEGRAM_CHAT_ID, 'text': text, 'parse_mode': 'Markdown'})
     except Exception as e:
