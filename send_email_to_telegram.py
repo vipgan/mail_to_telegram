@@ -4,10 +4,8 @@ import requests
 import os
 import json
 import time
-import re
 import base64
 from email.utils import parsedate_to_datetime
-from bs4 import BeautifulSoup
 
 # 设置邮箱信息
 email_user = os.environ['EMAIL_USER']
@@ -43,12 +41,12 @@ def save_sent_emails(sent_emails):
         encoded_emails = [encode_base64(subject) for subject in sent_emails]
         json.dump(encoded_emails, f)
 
-# 发送消息到 Telegram，增加1秒延迟
+# 发送消息到 Telegram，支持 Markdown V2 格式
 def send_message(text):
     try:
         time.sleep(3)  # 增加1秒延迟
         requests.post(f'https://api.telegram.org/bot{TELEGRAM_API_KEY}/sendMessage',
-                      data={'chat_id': TELEGRAM_CHAT_ID, 'text': text, 'parse_mode': 'HTML'})  # 设置 parse_mode 为 HTML
+                      data={'chat_id': TELEGRAM_CHAT_ID, 'text': text, 'parse_mode': 'MarkdownV2'})
     except Exception as e:
         print(f"Error sending message to Telegram: {e}")
 
@@ -60,24 +58,14 @@ def decode_header(header):
         for fragment, encoding in decoded_fragments
     )
 
-# 清理邮件主题，去除标签符号
-def clean_subject(subject):
-    return re.sub(r'[\[\]<>{}]', '', subject)
-
-# 清理邮件体，删除多余的 HTML 标签，图片等符号
-def clean_email_body(body):
-    soup = BeautifulSoup(body, "html.parser")
-
-    # 去掉图片标签
-    for img in soup.find_all('img'):
-        img.decompose()
-
-    # 获取纯文本内容并去掉多余空行
-    text = soup.get_text()
-    text = re.sub(r'\n\s*\n+', '\n\n', text)  # 删除多余空行
+# 转义 Markdown V2 特殊字符
+def escape_markdown(text):
+    escape_chars = ['_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!']
+    for char in escape_chars:
+        text = text.replace(char, f'\\{char}')
     return text
 
-# 获取邮件内容并转换为 HTML 格式
+# 获取邮件内容并返回原始 HTML 格式
 def get_email_body(msg):
     body = ""
     if msg.is_multipart():
@@ -90,9 +78,7 @@ def get_email_body(msg):
         charset = msg.get_content_charset()
         body = msg.get_payload(decode=True).decode(charset or 'utf-8', errors='ignore')
 
-    # 清理邮件体
-    clean_body = clean_email_body(body)
-    return clean_body  # 返回清理后的 HTML 内容
+    return body  # 返回原始 HTML 内容
 
 # 获取邮件原始时间
 def get_email_date(msg):
@@ -121,21 +107,21 @@ def fetch_emails():
                 _, msg_data = mail.fetch(email_id, '(RFC822)')
                 msg = email.message_from_bytes(msg_data[0][1])
                 
-                subject = clean_subject(decode_header(msg['subject']))  # 不再转义
-                sender = decode_header(msg['from'])  # 不再转义
-                body = get_email_body(msg)
+                subject = escape_markdown(decode_header(msg['subject']))
+                sender = escape_markdown(decode_header(msg['from']))
+                body = escape_markdown(get_email_body(msg))  # 转义邮件内容
                 email_date = get_email_date(msg)
 
                 # 检查邮件ID是否已经发送过
                 if subject in sent_emails:
                     continue
 
-                # 发送消息，使用 HTML 格式
+                # 发送消息，使用 Markdown V2 格式
                 message = f'''
-<b>主题:</b> {subject}<br>
-<b>发件人:</b> {sender}<br>
-<b>时间:</b> {email_date}<br>
-<b>内容:</b><br>
+*主题*: {subject}\n
+*发件人*: {sender}\n
+*时间*: {email_date}\n
+*内容*: \n
 {body}
 '''
                 send_message(message)
