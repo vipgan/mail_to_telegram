@@ -1,11 +1,12 @@
 import imaplib
 import email
-import requests
 import os
 import json
 import time
 import base64
 from email.utils import parsedate_to_datetime
+from telegram import Bot
+from telegram.constants import ParseMode
 
 # 设置邮箱信息
 email_user = os.environ['EMAIL_USER']
@@ -15,6 +16,7 @@ imap_server = "imap.qq.com"
 # 设置 Telegram 信息
 TELEGRAM_API_KEY = os.environ['TELEGRAM_API_KEY']
 TELEGRAM_CHAT_ID = os.environ['TELEGRAM_CHAT_ID']
+bot = Bot(token=TELEGRAM_API_KEY)
 
 # 保存发送记录文件
 sent_emails_file = 'sent_emails.json'
@@ -45,8 +47,7 @@ def save_sent_emails(sent_emails):
 def send_message(text):
     try:
         time.sleep(3)  # 增加1秒延迟
-        requests.post(f'https://api.telegram.org/bot{TELEGRAM_API_KEY}/sendMessage',
-                      data={'chat_id': TELEGRAM_CHAT_ID, 'text': text, 'parse_mode': 'MarkdownV2'})
+        bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=text, parse_mode=ParseMode.MARKDOWN_V2)
     except Exception as e:
         print(f"Error sending message to Telegram: {e}")
 
