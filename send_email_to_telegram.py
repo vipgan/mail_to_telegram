@@ -49,7 +49,7 @@ def send_message(text):
     try:
         time.sleep(3)  # 增加1秒延迟
         requests.post(f'https://api.telegram.org/bot{TELEGRAM_API_KEY}/sendMessage',
-                      data={'chat_id': TELEGRAM_CHAT_ID, 'text': text, 'parse_mode': 'MarkdownV2'})
+                      data={'chat_id': TELEGRAM_CHAT_ID, 'text': text})  # 移除 'parse_mode' 参数
     except Exception as e:
         print(f"Error sending message to Telegram: {e}")
 
@@ -91,10 +91,9 @@ def get_email_body(msg):
         charset = msg.get_content_charset()
         body = msg.get_payload(decode=True).decode(charset or 'utf-8', errors='ignore')
 
-    # 清理和转换为 Markdown 格式
+    # 清理邮件体
     clean_body = clean_email_body(body)
-    markdown_body = md(clean_body)
-    return markdown_body  # 直接返回 Markdown 格式
+    return clean_body  # 返回纯文本内容
 
 # 获取邮件原始时间
 def get_email_date(msg):
@@ -123,8 +122,8 @@ def fetch_emails():
                 _, msg_data = mail.fetch(email_id, '(RFC822)')
                 msg = email.message_from_bytes(msg_data[0][1])
                 
-                subject = clean_subject(decode_header(msg['subject']))
-                sender = decode_header(msg['from'])
+                subject = clean_subject(decode_header(msg['subject']))  # 不再转义
+                sender = decode_header(msg['from'])  # 不再转义
                 body = get_email_body(msg)
                 email_date = get_email_date(msg)
 
@@ -132,12 +131,12 @@ def fetch_emails():
                 if subject in sent_emails:
                     continue
 
-                # 发送消息，使用 Markdown V2 格式
+                # 发送消息，使用纯文本格式
                 message = f'''
-*主题*: {subject}
-*发件人*: {sender}  
-*时间*: {email_date}  
-*内容*:  
+主题: {subject}
+发件人: {sender}
+时间: {email_date}
+内容:
 {body}
 '''
                 send_message(message)
