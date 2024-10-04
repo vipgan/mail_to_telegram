@@ -40,10 +40,10 @@ def save_sent_emails(sent_emails):
 
 def send_message(text):
     try:
-        time.sleep(4)  # 增加1秒延迟
-        text = escape_markdown(text)  # 清理文本以适应 Markdown
+        time.sleep(2)  # 增加1秒延迟
+        text = escape_markdown(text, version=2)  # 使用 Markdown v2 处理文本
         response = requests.post(f'https://api.telegram.org/bot{TELEGRAM_API_KEY}/sendMessage',
-                                 data={'chat_id': TELEGRAM_CHAT_ID, 'text': text, 'parse_mode': 'Markdown'})
+                                 data={'chat_id': TELEGRAM_CHAT_ID, 'text': text, 'parse_mode': 'MarkdownV2'})
         response.raise_for_status()
         logging.info(f"Message sent: {text}")
     except Exception as e:
@@ -116,12 +116,12 @@ def fetch_emails():
             date_str = msg['date']
             body = get_email_body(msg)
 
-            # 发送消息，使用 Markdown 格式
+            # 发送消息，使用 Markdown v2 格式
             message = f'''
-*主题*: {subject}  
-*发件人*: {sender}  
-*时间*: {date_str}  
-*内容*:  
+*主题*: {subject}\n
+*发件人*: {sender}\n
+*时间*: {date_str}\n
+*内容*:\n
 {body}
 '''
             send_message(message)
