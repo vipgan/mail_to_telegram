@@ -8,7 +8,6 @@ import re
 import base64
 from email.utils import parsedate_to_datetime
 from bs4 import BeautifulSoup
-from markdownify import markdownify as md
 
 # 设置邮箱信息
 email_user = os.environ['EMAIL_USER']
@@ -49,7 +48,7 @@ def send_message(text):
     try:
         time.sleep(3)  # 增加1秒延迟
         requests.post(f'https://api.telegram.org/bot{TELEGRAM_API_KEY}/sendMessage',
-                      data={'chat_id': TELEGRAM_CHAT_ID, 'text': text})  # 移除 'parse_mode' 参数
+                      data={'chat_id': TELEGRAM_CHAT_ID, 'text': text, 'parse_mode': 'HTML'})  # 设置 parse_mode 为 HTML
     except Exception as e:
         print(f"Error sending message to Telegram: {e}")
 
@@ -78,7 +77,7 @@ def clean_email_body(body):
     text = re.sub(r'\n\s*\n+', '\n\n', text)  # 删除多余空行
     return text
 
-# 获取邮件内容并转换为 Markdown 格式
+# 获取邮件内容并转换为 HTML 格式
 def get_email_body(msg):
     body = ""
     if msg.is_multipart():
@@ -93,7 +92,7 @@ def get_email_body(msg):
 
     # 清理邮件体
     clean_body = clean_email_body(body)
-    return clean_body  # 返回纯文本内容
+    return clean_body  # 返回清理后的 HTML 内容
 
 # 获取邮件原始时间
 def get_email_date(msg):
@@ -131,12 +130,12 @@ def fetch_emails():
                 if subject in sent_emails:
                     continue
 
-                # 发送消息，使用纯文本格式
+                # 发送消息，使用 HTML 格式
                 message = f'''
-主题: {subject}
-发件人: {sender}
-时间: {email_date}
-内容:
+<b>主题:</b> {subject}<br>
+<b>发件人:</b> {sender}<br>
+<b>时间:</b> {email_date}<br>
+<b>内容:</b><br>
 {body}
 '''
                 send_message(message)
