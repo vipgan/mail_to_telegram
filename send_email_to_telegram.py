@@ -26,8 +26,11 @@ sent_emails_file = 'sent_emails.json'
 def encode_base64(text):
     return base64.b64encode(text.encode('utf-8')).decode('utf-8')
 
-# Base64 解码
+# Base64 解码，修正 padding 问题
 def decode_base64(encoded_text):
+    missing_padding = len(encoded_text) % 4
+    if missing_padding:
+        encoded_text += '=' * (4 - missing_padding)
     return base64.b64decode(encoded_text.encode('utf-8')).decode('utf-8')
 
 # 加载已发送的邮件记录（Base64 解码）
