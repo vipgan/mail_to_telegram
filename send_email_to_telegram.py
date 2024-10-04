@@ -127,7 +127,7 @@ def fetch_emails():
             send_message(message)
             
             # 记录发送的邮件
-            sent_emails.append(base64.b64encode(subject.encode()).decode())
+            sent_emails.append(subject)
 
     except Exception as e:
         logging.error(f"Error fetching emails: {e}")
