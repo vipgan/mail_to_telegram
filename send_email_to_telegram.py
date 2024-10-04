@@ -50,7 +50,7 @@ def save_sent_emails(sent_emails):
 # 发送消息到 Telegram
 def send_message(text):
     try:
-        bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=text, parse_mode='Markdown')
+        bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=text)
     except Exception as e:
         print(f"Error sending message to Telegram: {e}")
 
@@ -134,12 +134,12 @@ def fetch_emails():
                 if subject in sent_emails:
                     continue
 
-                # 发送消息，使用 Markdown 格式
+                # 发送消息，纯文本格式
                 message = f'''
-*主题*: {subject}
-*发件人*: {sender}  
-*时间*: {email_date}  
-*内容*:  
+主题: {subject}
+发件人: {sender}  
+时间: {email_date}  
+内容:  
 {body}
 '''
                 send_message(message)
