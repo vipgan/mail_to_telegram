@@ -5,6 +5,7 @@ import os
 import json
 import time
 import re
+import base64
 from email.utils import parsedate_to_datetime
 from bs4 import BeautifulSoup
 from markdownify import markdownify as md
@@ -21,17 +22,27 @@ TELEGRAM_CHAT_ID = os.environ['TELEGRAM_CHAT_ID']
 # 保存发送记录文件
 sent_emails_file = 'sent_emails.json'
 
-# 加载已发送的邮件记录
+# Base64 编码
+def encode_base64(text):
+    return base64.b64encode(text.encode('utf-8')).decode('utf-8')
+
+# Base64 解码
+def decode_base64(encoded_text):
+    return base64.b64decode(encoded_text.encode('utf-8')).decode('utf-8')
+
+# 加载已发送的邮件记录（Base64 解码）
 def load_sent_emails():
     if os.path.exists(sent_emails_file):
         with open(sent_emails_file, 'r') as f:
-            return json.load(f)
+            encoded_emails = json.load(f)
+            return [decode_base64(subject) for subject in encoded_emails]
     return []
 
-# 保存已发送的邮件记录
+# 保存已发送的邮件记录（Base64 编码）
 def save_sent_emails(sent_emails):
     with open(sent_emails_file, 'w') as f:
-        json.dump(sent_emails, f)
+        encoded_emails = [encode_base64(subject) for subject in sent_emails]
+        json.dump(encoded_emails, f)
 
 # 发送消息到 Telegram，增加1秒延迟
 def send_message(text):
@@ -61,6 +72,19 @@ def escape_markdown(text):
         text = text.replace(char, f'\\{char}')
     return text
 
+# 清理邮件体，删除多余的 HTML 标签，图片等符号
+def clean_email_body(body):
+    soup = BeautifulSoup(body, "html.parser")
+
+    # 去掉图片标签
+    for img in soup.find_all('img'):
+        img.decompose()
+
+    # 获取纯文本内容并去掉多余空行
+    text = soup.get_text()
+    text = re.sub(r'\n\s*\n+', '\n\n', text)  # 删除多余空行
+    return text
+
 # 获取邮件内容并转换为 Markdown 格式
 def get_email_body(msg):
     body = ""
@@ -74,8 +98,9 @@ def get_email_body(msg):
         charset = msg.get_content_charset()
         body = msg.get_payload(decode=True).decode(charset or 'utf-8', errors='ignore')
 
-    # 使用 BeautifulSoup 解析 HTML 并转换为 Markdown
-    markdown_body = md(body)
+    # 清理和转换为 Markdown 格式
+    clean_body = clean_email_body(body)
+    markdown_body = md(clean_body)
     return escape_markdown(markdown_body)
 
 # 获取邮件原始时间
@@ -124,7 +149,7 @@ def fetch_emails():
 '''
                 send_message(message)
                 
-                # 记录发送的邮件
+                # 记录发送的邮件（Base64 编码保存）
                 sent_emails.append(subject)
 
             except Exception as e:
