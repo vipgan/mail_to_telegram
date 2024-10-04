@@ -118,10 +118,10 @@ def fetch_emails():
 
             # 发送消息，使用 Markdown 格式
             message = f'''
-**主题**: {subject}  
-**发件人**: {sender}  
-**时间**: {date_str}  
-**内容**:\n
+主题: {subject}  
+发件人: {sender}  
+时间: {date_str}  
+内容:----------------------
 {body}
 '''
             send_message(message)
