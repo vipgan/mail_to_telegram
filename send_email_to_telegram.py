@@ -26,11 +26,8 @@ sent_emails_file = 'sent_emails.json'
 def encode_base64(text):
     return base64.b64encode(text.encode('utf-8')).decode('utf-8')
 
-# Base64 解码，修正 padding 问题
+# Base64 解码
 def decode_base64(encoded_text):
-    missing_padding = len(encoded_text) % 4
-    if missing_padding:
-        encoded_text += '=' * (4 - missing_padding)
     return base64.b64decode(encoded_text.encode('utf-8')).decode('utf-8')
 
 # 加载已发送的邮件记录（Base64 解码）
@@ -68,13 +65,6 @@ def decode_header(header):
 def clean_subject(subject):
     return re.sub(r'[\[\]<>{}]', '', subject)
 
-# 转义 Markdown V2 特殊字符
-def escape_markdown(text):
-    escape_chars = ['_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!']
-    for char in escape_chars:
-        text = text.replace(char, f'\\{char}')
-    return text
-
 # 清理邮件体，删除多余的 HTML 标签，图片等符号
 def clean_email_body(body):
     soup = BeautifulSoup(body, "html.parser")
@@ -104,7 +94,7 @@ def get_email_body(msg):
     # 清理和转换为 Markdown 格式
     clean_body = clean_email_body(body)
     markdown_body = md(clean_body)
-    return escape_markdown(markdown_body)
+    return markdown_body  # 直接返回 Markdown 格式
 
 # 获取邮件原始时间
 def get_email_date(msg):
@@ -133,8 +123,8 @@ def fetch_emails():
                 _, msg_data = mail.fetch(email_id, '(RFC822)')
                 msg = email.message_from_bytes(msg_data[0][1])
                 
-                subject = escape_markdown(clean_subject(decode_header(msg['subject'])))
-                sender = escape_markdown(decode_header(msg['from']))
+                subject = clean_subject(decode_header(msg['subject']))
+                sender = decode_header(msg['from'])
                 body = get_email_body(msg)
                 email_date = get_email_date(msg)
 
