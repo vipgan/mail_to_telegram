@@ -1,6 +1,5 @@
 import imaplib
 import email
-import requests
 import os
 import json
 import time
@@ -9,6 +8,7 @@ import base64
 from email.utils import parsedate_to_datetime
 from datetime import datetime, timedelta
 from bs4 import BeautifulSoup
+from telegram import Bot
 
 # 设置邮箱信息
 email_user = os.environ['EMAIL_USER']
@@ -18,6 +18,9 @@ imap_server = "imap.qq.com"
 # 设置 Telegram 信息
 TELEGRAM_API_KEY = os.environ['TELEGRAM_API_KEY']
 TELEGRAM_CHAT_ID = os.environ['TELEGRAM_CHAT_ID']
+
+# 创建 Telegram Bot 实例
+bot = Bot(token=TELEGRAM_API_KEY)
 
 # 保存发送记录文件
 sent_emails_file = 'sent_emails.json'
@@ -44,12 +47,10 @@ def save_sent_emails(sent_emails):
         encoded_emails = [encode_base64(subject) for subject in sent_emails]
         json.dump(encoded_emails, f)
 
-# 发送消息到 Telegram，增加1秒延迟
+# 发送消息到 Telegram
 def send_message(text):
     try:
-        time.sleep(3)  # 增加1秒延迟
-        requests.post(f'https://api.telegram.org/bot{TELEGRAM_API_KEY}/sendMessage',
-                      data={'chat_id': TELEGRAM_CHAT_ID, 'text': text, 'parse_mode': 'MarkdownV2'})
+        bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=text, parse_mode='Markdown')
     except Exception as e:
         print(f"Error sending message to Telegram: {e}")
 
@@ -133,7 +134,7 @@ def fetch_emails():
                 if subject in sent_emails:
                     continue
 
-                # 发送消息，使用 Markdown V2 格式
+                # 发送消息，使用 Markdown 格式
                 message = f'''
 *主题*: {subject}
 *发件人*: {sender}  
