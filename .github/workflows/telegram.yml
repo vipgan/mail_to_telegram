@@ -3,7 +3,7 @@ name: Send QQ Emails to Telegram
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 */2 * * *'  # 每1小时运行一次
+    - cron: '0 */2 * * *'  # 每2小时运行一次
 
 jobs:
   send_email:
@@ -19,16 +19,14 @@ jobs:
           key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
           restore-keys: |
             ${{ runner.os }}-pip-
-
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.x'
+          python-version: '3.9'
 
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
-
       - name: Run the script
         env:
           EMAIL_USER: ${{ secrets.EMAIL_USER }}
