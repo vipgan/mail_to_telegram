@@ -37,13 +37,16 @@ def save_sent_emails(sent_emails):
     with open(sent_emails_file, 'w') as f:
         json.dump(list(sent_emails), f)
 
+def escape_markdown_v2(text):
+    return re.sub(r'([_*[\]()~`>#+\-=|{}.!])', r'\\\1', text)
+
 def send_message(text):
     try:
         time.sleep(4)  # 增加1秒延迟
-        text = escape_markdown(text)  # 清理文本以适应 Markdown
+        text = escape_markdown(text, version=2)  # 使用 MarkdownV2 转义
         response = requests.post(f'https://api.telegram.org/bot{TELEGRAM_API_KEY}/sendMessage',
-                                 data={'chat_id': TELEGRAM_CHAT_ID, 'text': text, 'parse_mode': 'Markdown'})
-        response.raise_for_status()
+                                 data={'chat_id': TELEGRAM_CHAT_ID, 'text': text, 'parse_mode': 'MarkdownV2'})
+        response.raise_for_status()  # 检查请求是否成功
         logging.info(f"Message sent: {text}")
     except Exception as e:
         logging.error(f"Error sending message to Telegram: {e}")
@@ -59,11 +62,9 @@ def decode_header(header):
 def clean_email_body(body):
     soup = BeautifulSoup(body, 'html.parser')
     text = soup.get_text()
-
-    # 清理多余的空行和空白
-    text = re.sub(r'\n\s*\n+', '\n', text)  # 替换多个换行符为一个换行符
+    text = re.sub(r'\n\s*\n+', '\n', text)  # 清理多余的空行和空白
     text = re.sub(r'^\s*$', '', text, flags=re.MULTILINE)  # 清除空行
-    return text.strip()  # 去除首尾空白
+    return text.strip()
 
 # 获取邮件内容并解决乱码问题
 def get_email_body(msg):
@@ -72,26 +73,31 @@ def get_email_body(msg):
         for part in msg.walk():
             content_type = part.get_content_type()
             charset = part.get_content_charset() or 'utf-8'
-            
             if content_type in ['text/html', 'text/plain']:
                 body = part.get_payload(decode=True).decode(charset, errors='ignore')
-                break  # 找到第一个有效内容后退出
+                break
     else:
         charset = msg.get_content_charset() or 'utf-8'
         body = msg.get_payload(decode=True).decode(charset, errors='ignore')
-        
     return clean_email_body(body)
 
 # 清理邮件主题
 def clean_subject(subject):
-    return re.sub(r'[^\w\s]', '', subject)  # 清除符号
+    return re.sub(r'[^\w\s]', '', subject)
+
+# 格式化发送消息
+def format_message(subject, sender, date_str, body):
+    return f'''
+*主题*: {escape_markdown(subject, version=2)}  
+*发件人*: {escape_markdown(sender, version=2)}  
+*时间*: {escape_markdown(date_str, version=2)}  
+*内容*:------------------------------
+{escape_markdown(body, version=2)}
+'''
 
 # 获取并处理邮件
 def fetch_emails():
     sent_emails = load_sent_emails()
-    
-    now = datetime.now()
-    two_days_ago = now - timedelta(days=2)
     
     try:
         mail = imaplib.IMAP4_SSL(imap_server)
@@ -107,31 +113,29 @@ def fetch_emails():
         email_ids = messages[0].split()
         
         for email_id in email_ids:
-            _, msg_data = mail.fetch(email_id, '(RFC822)')
-            msg = email.message_from_bytes(msg_data[0][1])
-            
-            subject = clean_subject(decode_header(msg['subject']))
-            sender = decode_header(msg['from'])
-            date_str = msg['date']
-            body = get_email_body(msg)
+            try:
+                _, msg_data = mail.fetch(email_id, '(RFC822)')
+                msg = email.message_from_bytes(msg_data[0][1])
+                
+                subject = clean_subject(decode_header(msg['subject']))
+                sender = decode_header(msg['from'])
+                date_str = msg['date']
+                body = get_email_body(msg)
 
-            # 检查是否已发送
-            if subject in sent_emails:
-                logging.info(f"Email already sent: {subject}")
-                continue  # 跳过已发送的邮件
-            
-            # 发送消息，使用 Markdown 格式
-            message = f'''
-主题: {subject}  
-发件人: {sender}  
-时间: {date_str}  
-内容:----------------------------
-{body}
-'''
-            send_message(message)
-            
-            # 记录发送的邮件
-            sent_emails.add(subject)  # 使用集合记录
+                # 检查是否已发送
+                if email_id in sent_emails:
+                    logging.info(f"Email already sent: {subject}")
+                    continue
+                
+                # 发送消息
+                message = format_message(subject, sender, date_str, body)
+                send_message(message)
+
+                # 记录发送的邮件
+                sent_emails.add(email_id)
+
+            except Exception as e:
+                logging.error(f"Error processing email ID {email_id}: {e}")
 
     except Exception as e:
         logging.error(f"Error fetching emails: {e}")
