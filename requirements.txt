@@ -1,6 +1,6 @@
 requests
+html2text
+python-telegram-bot
 beautifulsoup4
+langdetect
 markdownify
-imaplib
-base64
-logging
