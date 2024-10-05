@@ -39,6 +39,10 @@ def save_sent_emails(sent_emails):
 
 def send_message(text):
     try:
+        if not isinstance(text, str):
+            logging.error(f"Expected string but got: {type(text)}")
+            return
+        
         time.sleep(4)  # 增加1秒延迟
         text = escape_markdown(text, version=2)  # 清理文本以适应 Markdown
         response = requests.post(f'https://api.telegram.org/bot{TELEGRAM_API_KEY}/sendMessage',
@@ -86,18 +90,6 @@ def get_email_body(msg):
 def clean_subject(subject):
     return re.sub(r'[^\w\s]', '', subject)  # 清除符号
 
-# 格式化消息
-def format_message(subject, sender, date_str, body):
-    message = f'''
-*主题:* {subject}  
-*发件人:* {sender}  
-*时间:* {date_str}  
-*内容:*----------------------------
-{body}  # 这里直接使用文本格式，不进行转义
-'''
-    return message
-
-
 # 获取并处理邮件
 def fetch_emails():
     sent_emails = load_sent_emails()
@@ -130,8 +122,14 @@ def fetch_emails():
                     logging.info(f"Email already sent: {subject}")
                     continue
                 
-                # 发送消息，使用 Markdown 格式
-                message = format_message(subject, sender, date_str, body)
+                # 发送消息，使用指定的格式
+                message = f'''
+主题: {subject}  
+发件人: {sender}  
+时间: {date_str}  
+内容:----------------------------
+{body}
+'''
                 send_message(message)
 
                 # 记录发送的邮件
