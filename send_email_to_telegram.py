@@ -38,13 +38,9 @@ def save_sent_emails(sent_emails):
         json.dump(list(sent_emails), f)
 
 def send_message(text):
-    try:
-        if not isinstance(text, str):
-            logging.error(f"Expected string but got: {type(text)}")
-            return
-        
-        time.sleep(4)  # 增加1秒延迟
-        text = escape_markdown(text, version=2)  # 清理文本以适应 Markdown
+    try:    
+        time.sleep(4)  # 增加4秒延迟
+        text = escape_markdown(text)  # 清理文本以适应 Markdown
         response = requests.post(f'https://api.telegram.org/bot{TELEGRAM_API_KEY}/sendMessage',
                                  data={'chat_id': TELEGRAM_CHAT_ID, 'text': text, 'parse_mode': 'Markdown'})
         response.raise_for_status()
