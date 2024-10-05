@@ -12,6 +12,14 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
+      - name: Cache pip dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
@@ -19,12 +27,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install requests
-          pip install html2text
-          pip install python-telegram-bot
-          pip install beautifulsoup4
-          pip install langdetect
-          pip install markdownify
+          pip install -r requirements.txt
 
       - name: Run the script
         env:
