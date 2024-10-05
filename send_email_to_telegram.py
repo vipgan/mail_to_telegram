@@ -6,9 +6,8 @@ import json
 import time
 import re
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 from bs4 import BeautifulSoup
-from telegram.helpers import escape_markdown
 
 # 设置日志记录
 logging.basicConfig(level=logging.INFO)
@@ -29,20 +28,17 @@ sent_emails_file = 'sent_emails.json'
 def load_sent_emails():
     if os.path.exists(sent_emails_file):
         with open(sent_emails_file, 'r') as f:
-            return set(json.load(f))  # 使用集合以便快速查找
+            return {str(email) for email in json.load(f)}  # 确保所有ID为字符串
     return set()
 
 # 保存已发送的邮件记录
 def save_sent_emails(sent_emails):
-    # 确保 sent_emails 中的每个元素都是字符串
-    string_emails = {email.decode('utf-8') if isinstance(email, bytes) else email for email in sent_emails}
     with open(sent_emails_file, 'w') as f:
-        json.dump(list(string_emails), f)
+        json.dump(list(sent_emails), f)  # 以列表形式保存
 
 def send_message(text):
-    try:    
+    try:
         time.sleep(4)  # 增加4秒延迟
-        text = escape_markdown(text)  # 清理文本以适应 Markdown
         response = requests.post(f'https://api.telegram.org/bot{TELEGRAM_API_KEY}/sendMessage',
                                  data={'chat_id': TELEGRAM_CHAT_ID, 'text': text, 'parse_mode': 'Markdown'})
         response.raise_for_status()
@@ -68,6 +64,8 @@ def clean_email_body(body):
     return text.strip()  # 去除首尾空白
 
 # 获取邮件内容并解决乱码问题
+MAX_BODY_LENGTH = 4000  # Telegram 消息长度限制
+
 def get_email_body(msg):
     body = ""
     if msg.is_multipart():
@@ -81,8 +79,14 @@ def get_email_body(msg):
     else:
         charset = msg.get_content_charset() or 'utf-8'
         body = msg.get_payload(decode=True).decode(charset, errors='ignore')
-        
-    return clean_email_body(body)
+    
+    body = clean_email_body(body)
+    
+    # 截断过长的内容
+    if len(body) > MAX_BODY_LENGTH:
+        body = body[:MAX_BODY_LENGTH] + '... [message truncated]'
+    
+    return body
 
 # 清理邮件主题
 def clean_subject(subject):
@@ -106,6 +110,11 @@ def fetch_emails():
         email_ids = messages[0].split()
         
         for email_id in email_ids:
+            email_id_str = email_id.decode('utf-8')  # 确保email_id是字符串
+            if email_id_str in sent_emails:
+                logging.info(f"Email already sent: {email_id_str}")
+                continue
+            
             try:
                 _, msg_data = mail.fetch(email_id, '(RFC822)')
                 msg = email.message_from_bytes(msg_data[0][1])
@@ -115,12 +124,7 @@ def fetch_emails():
                 date_str = msg['date']
                 body = get_email_body(msg)
 
-                # 检查是否已发送
-                if email_id in sent_emails:  # 使用 email_id 来判断
-                    logging.info(f"Email already sent: {subject}")
-                    continue
-                
-                # 发送消息，使用指定的格式
+                # 发送消息
                 message = f'''
 主题: {subject}  
 发件人: {sender}  
@@ -131,10 +135,10 @@ def fetch_emails():
                 send_message(message)
 
                 # 记录发送的邮件
-                sent_emails.add(email_id)  # 使用邮件 ID 记录
+                sent_emails.add(email_id_str)
 
             except Exception as e:
-                logging.error(f"Error processing email ID {email_id}: {e}")
+                logging.error(f"Error processing email ID {email_id_str}: {e}")
 
     except Exception as e:
         logging.error(f"Error fetching emails: {e}")
