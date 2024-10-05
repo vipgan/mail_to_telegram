@@ -40,9 +40,10 @@ def save_sent_emails(sent_emails):
 def send_message(text):
     try:
         time.sleep(4)  # 增加1秒延迟
+        text = escape_markdown(text, version=2)  # 清理文本以适应 Markdown
         response = requests.post(f'https://api.telegram.org/bot{TELEGRAM_API_KEY}/sendMessage',
                                  data={'chat_id': TELEGRAM_CHAT_ID, 'text': text, 'parse_mode': 'Markdown'})
-        response.raise_for_status()  # 检查请求是否成功
+        response.raise_for_status()
         logging.info(f"Message sent: {text}")
     except Exception as e:
         logging.error(f"Error sending message to Telegram: {e}")
@@ -58,9 +59,11 @@ def decode_header(header):
 def clean_email_body(body):
     soup = BeautifulSoup(body, 'html.parser')
     text = soup.get_text()
-    text = re.sub(r'\n\s*\n+', '\n', text)  # 清理多余的空行和空白
+
+    # 清理多余的空行和空白
+    text = re.sub(r'\n\s*\n+', '\n', text)  # 替换多个换行符为一个换行符
     text = re.sub(r'^\s*$', '', text, flags=re.MULTILINE)  # 清除空行
-    return text.strip()
+    return text.strip()  # 去除首尾空白
 
 # 获取邮件内容并解决乱码问题
 def get_email_body(msg):
@@ -69,25 +72,28 @@ def get_email_body(msg):
         for part in msg.walk():
             content_type = part.get_content_type()
             charset = part.get_content_charset() or 'utf-8'
+            
             if content_type in ['text/html', 'text/plain']:
                 body = part.get_payload(decode=True).decode(charset, errors='ignore')
-                break
+                break  # 找到第一个有效内容后退出
     else:
         charset = msg.get_content_charset() or 'utf-8'
         body = msg.get_payload(decode=True).decode(charset, errors='ignore')
+        
     return clean_email_body(body)
 
 # 清理邮件主题
 def clean_subject(subject):
-    return re.sub(r'[^\w\s]', '', subject)
+    return re.sub(r'[^\w\s]', '', subject)  # 清除符号
 
-# 格式化发送消息
+# 格式化消息
 def format_message(subject, sender, date_str, body):
-    return f'''
-*主题*: {subject}  
-*发件人*: {sender}  
-*时间*: {date_str}  
-*内容*:------------------------------
+            # 发送消息，使用 Markdown 格式
+            message = f'''
+*主题:* {subject}  
+发件人:* {sender}  
+*时间:* {date_str}  
+*内容:*----------------------------/n
 {body}
 '''
 
@@ -119,16 +125,16 @@ def fetch_emails():
                 body = get_email_body(msg)
 
                 # 检查是否已发送
-                if email_id in sent_emails:
+                if email_id in sent_emails:  # 使用 email_id 来判断
                     logging.info(f"Email already sent: {subject}")
                     continue
                 
-                # 发送消息
+                # 发送消息，使用 Markdown 格式
                 message = format_message(subject, sender, date_str, body)
                 send_message(message)
 
                 # 记录发送的邮件
-                sent_emails.add(email_id)
+                sent_emails.add(email_id)  # 使用邮件 ID 记录
 
             except Exception as e:
                 logging.error(f"Error processing email ID {email_id}: {e}")
