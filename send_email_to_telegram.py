@@ -88,14 +88,15 @@ def clean_subject(subject):
 
 # 格式化消息
 def format_message(subject, sender, date_str, body):
-            # 发送消息，使用 Markdown 格式
-            message = f'''
+    message = f'''
 *主题:* {subject}  
-发件人:* {sender}  
+*发件人:* {sender}  
 *时间:* {date_str}  
-*内容:*----------------------------/n
-{body}
+*内容:*----------------------------
+{body}  # 这里直接使用文本格式，不进行转义
 '''
+    return message
+
 
 # 获取并处理邮件
 def fetch_emails():
