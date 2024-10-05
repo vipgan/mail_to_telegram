@@ -3,7 +3,7 @@ name: Send QQ Emails to Telegram
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 */3 * * *'  # 每2小时运行一次
+    - cron: '0 */2 * * *'  # 每1小时运行一次
 
 jobs:
   send_email:
@@ -41,8 +41,10 @@ jobs:
         run: |
           git config --global user.name "GitHub Actions"
           git config --global user.email "actions@github.com"
-          git pull --rebase origin main  # 拉取远程更改并进行 rebase
           git add sent_emails.json  # 暂存更改
+          git commit -m "Temporary commit to resolve conflicts" || echo "No changes to commit"
+          git pull --rebase origin main  # 拉取远程更改并进行 rebase
+          git add sent_emails.json
           git commit -m "Update sent_emails.json with new sent emails" || echo "No changes to commit"
           git push
         continue-on-error: true
