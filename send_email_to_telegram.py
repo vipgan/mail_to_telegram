@@ -41,14 +41,22 @@ def save_sent_emails(sent_emails):
 
 def send_message(text):
     try:
-        time.sleep(4)  # 增加4秒延迟
-        text = escape_markdown(text)  # 清理文本以适应 Markdown
-        response = requests.post(f'https://api.telegram.org/bot{TELEGRAM_API_KEY}/sendMessage',
-                                 data={'chat_id': TELEGRAM_CHAT_ID, 'text': text, 'parse_mode': 'Markdown'})
-        response.raise_for_status()
-        logging.info(f"Message sent: {text}")
+        # Telegram 消息最大长度为 4096 字符，这里将消息截断为每段 4000 字符，以避免超限
+        MAX_MESSAGE_LENGTH = 4000
+        
+        # 分割消息成多个部分
+        messages = [text[i:i + MAX_MESSAGE_LENGTH] for i in range(0, len(text), MAX_MESSAGE_LENGTH)]
+        
+        for message_part in messages:
+            time.sleep(4)  # 增加4秒延迟
+            message_part = escape_markdown(message_part)  # 清理文本以适应 Markdown
+            response = requests.post(f'https://api.telegram.org/bot{TELEGRAM_API_KEY}/sendMessage',
+                                     data={'chat_id': TELEGRAM_CHAT_ID, 'text': message_part, 'parse_mode': 'Markdown'})
+            response.raise_for_status()
+            logging.info(f"Message part sent: {message_part}")
     except Exception as e:
         logging.error(f"Error sending message to Telegram: {e}")
+
 
 # 解码邮件头
 def decode_header(header):
