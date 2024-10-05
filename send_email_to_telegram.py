@@ -34,8 +34,10 @@ def load_sent_emails():
 
 # 保存已发送的邮件记录
 def save_sent_emails(sent_emails):
+    # 确保 sent_emails 中的每个元素都是字符串
+    string_emails = {email.decode('utf-8') if isinstance(email, bytes) else email for email in sent_emails}
     with open(sent_emails_file, 'w') as f:
-        json.dump(list(sent_emails), f)
+        json.dump(list(string_emails), f)
 
 def send_message(text):
     try:    
@@ -123,7 +125,7 @@ def fetch_emails():
 主题: {subject}  
 发件人: {sender}  
 时间: {date_str}  
-内容:----------------------------
+内容:------------------------------
 {body}
 '''
                 send_message(message)
