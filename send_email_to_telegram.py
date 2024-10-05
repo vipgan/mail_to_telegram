@@ -37,15 +37,11 @@ def save_sent_emails(sent_emails):
     with open(sent_emails_file, 'w') as f:
         json.dump(list(sent_emails), f)
 
-def escape_markdown_v2(text):
-    return re.sub(r'([_*[\]()~`>#+\-=|{}.!])', r'\\\1', text)
-
 def send_message(text):
     try:
         time.sleep(4)  # 增加1秒延迟
-        text = escape_markdown(text, version=2)  # 使用 MarkdownV2 转义
         response = requests.post(f'https://api.telegram.org/bot{TELEGRAM_API_KEY}/sendMessage',
-                                 data={'chat_id': TELEGRAM_CHAT_ID, 'text': text, 'parse_mode': 'MarkdownV2'})
+                                 data={'chat_id': TELEGRAM_CHAT_ID, 'text': text, 'parse_mode': 'Markdown'})
         response.raise_for_status()  # 检查请求是否成功
         logging.info(f"Message sent: {text}")
     except Exception as e:
@@ -88,11 +84,11 @@ def clean_subject(subject):
 # 格式化发送消息
 def format_message(subject, sender, date_str, body):
     return f'''
-*主题*: {escape_markdown(subject, version=2)}  
-*发件人*: {escape_markdown(sender, version=2)}  
-*时间*: {escape_markdown(date_str, version=2)}  
+*主题*: {subject}  
+*发件人*: {sender}  
+*时间*: {date_str}  
 *内容*:------------------------------
-{escape_markdown(body, version=2)}
+{body}
 '''
 
 # 获取并处理邮件
