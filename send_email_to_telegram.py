@@ -84,10 +84,6 @@ def get_email_body(msg):
         
     return clean_email_body(body)
 
-# 清理邮件主题
-def clean_subject(subject):
-    return re.sub(r'[^\w\s]', '', subject)  # 清除符号
-
 # 获取并处理邮件
 def fetch_emails():
     sent_emails = load_sent_emails()
@@ -125,7 +121,7 @@ def fetch_emails():
 主题: {subject}  
 发件人: {sender}  
 时间: {date_str}  
-内容:------------------------------
+内容:-------------------------------
 {body}
 '''
                 send_message(message)
