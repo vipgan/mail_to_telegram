@@ -8,8 +8,7 @@ import re
 import logging
 from datetime import datetime, timedelta
 from bs4 import BeautifulSoup
-import base64
-from telegram.helpers import escape_markdown  # 更新导入语句
+from telegram.helpers import escape_markdown
 
 # 设置日志记录
 logging.basicConfig(level=logging.INFO)
@@ -30,13 +29,13 @@ sent_emails_file = 'sent_emails.json'
 def load_sent_emails():
     if os.path.exists(sent_emails_file):
         with open(sent_emails_file, 'r') as f:
-            return json.load(f)
-    return []
+            return set(json.load(f))  # 使用集合以便快速查找
+    return set()
 
 # 保存已发送的邮件记录
 def save_sent_emails(sent_emails):
     with open(sent_emails_file, 'w') as f:
-        json.dump(sent_emails, f)
+        json.dump(list(sent_emails), f)
 
 def send_message(text):
     try:
@@ -72,7 +71,7 @@ def get_email_body(msg):
     if msg.is_multipart():
         for part in msg.walk():
             content_type = part.get_content_type()
-            charset = part.get_content_charset() or 'utf-8'  # 默认使用 utf-8
+            charset = part.get_content_charset() or 'utf-8'
             
             if content_type in ['text/html', 'text/plain']:
                 body = part.get_payload(decode=True).decode(charset, errors='ignore')
@@ -116,6 +115,11 @@ def fetch_emails():
             date_str = msg['date']
             body = get_email_body(msg)
 
+            # 检查是否已发送
+            if subject in sent_emails:
+                logging.info(f"Email already sent: {subject}")
+                continue  # 跳过已发送的邮件
+            
             # 发送消息，使用 Markdown 格式
             message = f'''
 主题: {subject}  
@@ -127,7 +131,7 @@ def fetch_emails():
             send_message(message)
             
             # 记录发送的邮件
-            sent_emails.append(subject)
+            sent_emails.add(subject)  # 使用集合记录
 
     except Exception as e:
         logging.error(f"Error fetching emails: {e}")
